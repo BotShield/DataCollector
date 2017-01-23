@@ -7,3 +7,4 @@ bin/*
 src/twitter4j.properties
 
 
+/target/

@@ -16,24 +16,27 @@
 
 package de.botshield;
 
-import twitter4j.*;
-import twitter4j.conf.*;
+import twitter4j.FilterQuery;
+import twitter4j.StallWarning;
+import twitter4j.Status;
+import twitter4j.StatusDeletionNotice;
+import twitter4j.StatusListener;
+import twitter4j.TwitterException;
+import twitter4j.TwitterStream;
+import twitter4j.TwitterStreamFactory;
 
 /*
- * Klasse zum Schreiben von Tweets in eine DB basierend auf Schlagwörtern. 
+ * Klasse zum Schreiben von Tweets in eine DB basierend auf Schlagwörtern.
  */
-public final class CaptureFilterStream 
-{
-	
-	private PGDBConnection dbConn;
-    
-	StatusListener listener = new StatusListener() 
-	{
+public final class CaptureFilterStream {
+
+    private PGDBConnection dbConn;
+
+    StatusListener listener = new StatusListener() {
         @Override
-        public void onStatus(Status status) 
-        {
-            //System.out.println("@" + status.getUser().getScreenName() + " - " + status.getText());
-        	dbConn.insertStatus(status);
+        public void onStatus(Status status) {
+            System.out.println("@" + status.getUser().getScreenName() + " - " + status.getText());
+            // dbConn.insertStatus(status);
         }
 
         @Override
@@ -52,57 +55,58 @@ public final class CaptureFilterStream
         }
 
         @Override
-        public void onStallWarning(StallWarning warning) 
-        {
+        public void onStallWarning(StallWarning warning) {
             System.err.println("Got stall warning:" + warning);
         }
 
         @Override
-        public void onException(Exception ex) 
-        {
-        	dbConn.closeConnection();
+        public void onException(Exception ex) {
+            dbConn.closeConnection();
             ex.printStackTrace();
         }
     };
-    
+
     /*
      * Constructor
      */
-    public CaptureFilterStream()
-    {
-    	dbConn=new PGDBConnection();
-    	dbConn.establishConnection("jstrebel", "", "twitter"); //login meiner Testdatenbank auf localhost
-    	
-    	
-    	/* Alternative Konfigurationsmethode ohne Properties-Datei
-    	ConfigurationBuilder cb = new ConfigurationBuilder();
-    	cb.setDebugEnabled(true)
-    	  .setOAuthConsumerKey("*********************")
-    	  .setOAuthConsumerSecret("******************************************")
-    	  .setOAuthAccessToken("**************************************************")
-    	  .setOAuthAccessTokenSecret("******************************************");
-    
-    	TwitterFactory tf = new TwitterFactory(cb.build());
-    	Twitter twitter = tf.getInstance();*/
-    }
-    
-    public void execute(long[] followArray, String[] trackArray) throws TwitterException
-    {
-    	  TwitterStream twitterStream = new TwitterStreamFactory().getInstance();
-          twitterStream.addListener(listener);
+    public CaptureFilterStream() {
+        // dbConn=new PGDBConnection();
+        // dbConn.establishConnection("jstrebel", "", "twitter"); //login meiner
+        // Testdatenbank auf localhost
 
-          // filter() method internally creates a thread which manipulates TwitterStream and calls these adequate listener methods continuously.
-          twitterStream.filter(new FilterQuery(0, followArray, trackArray));
+        /*
+         * Alternative Konfigurationsmethode ohne Properties-Datei
+         * ConfigurationBuilder cb = new ConfigurationBuilder();
+         * cb.setDebugEnabled(true)
+         * .setOAuthConsumerKey("*********************")
+         * .setOAuthConsumerSecret("******************************************")
+         * .setOAuthAccessToken(
+         * "**************************************************")
+         * .setOAuthAccessTokenSecret(
+         * "******************************************");
+         *
+         * TwitterFactory tf = new TwitterFactory(cb.build()); Twitter twitter =
+         * tf.getInstance();
+         */
     }
-    
-	public static void main(String[] args) throws TwitterException 
-    {
-		//mal als Übergangslösung. Das einfachste wäre eine kleine Textdatei mit Schlagwörtern und Usernamen 
-        long[] followArray =null; // = new long[10]; //UserIDs 
-        String[] trackArray = new String[1]; //Schlagworte
-        
-        trackArray[0]="#AfD";
-        
+
+    public void execute(long[] followArray, String[] trackArray) throws TwitterException {
+        TwitterStream twitterStream = new TwitterStreamFactory().getInstance();
+        twitterStream.addListener(listener);
+
+        // filter() method internally creates a thread which manipulates
+        // TwitterStream and calls these adequate listener methods continuously.
+        twitterStream.filter(new FilterQuery(0, followArray, trackArray));
+    }
+
+    public static void main(String[] args) throws TwitterException {
+        // mal als Übergangslösung. Das einfachste wäre eine kleine Textdatei
+        // mit Schlagwörtern und Usernamen
+        long[] followArray = null; // = new long[10]; //UserIDs
+        String[] trackArray = new String[1]; // Schlagworte
+
+        trackArray[0] = "#AfD";
+
         CaptureFilterStream objCapture = new CaptureFilterStream();
         objCapture.execute(followArray, trackArray);
     }
