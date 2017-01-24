@@ -4,7 +4,6 @@ src/.deps/*
 src/old_*
 twitter4j.properties
 bin/*
-src/twitter4j.properties
-
-
+src/main/resources/*
 /target/
+
