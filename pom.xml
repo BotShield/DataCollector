@@ -6,46 +6,44 @@
 	<groupId>de.botshield</groupId>
 	<artifactId>dataCollector</artifactId>
 	<version>0.1</version>
-
-  <build>
-    <plugins>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-jar-plugin</artifactId>
-        <configuration>
-          <archive>
-            <manifest>
-              <addClasspath>true</addClasspath>
-              <mainClass>de.botshield.CaptureFilterStream</mainClass>
-            </manifest>
-          </archive>
-        </configuration>
-      </plugin>
-      <plugin>
-        <artifactId>maven-assembly-plugin</artifactId>
-        <executions>
-          <execution>
-            <phase>package</phase>
-            <goals>
-              <goal>single</goal>
-            </goals>
-          </execution>
-        </executions>
-        <configuration>
-          <descriptorRefs>
-            <descriptorRef>jar-with-dependencies</descriptorRef>
-          </descriptorRefs>
-          <archive>
-            <manifest>
-              <addClasspath>true</addClasspath>
-              <mainClass>de.botshield.CaptureFilterStream</mainClass>
-            </manifest>
-          </archive>
-        </configuration>
-      </plugin>
-    </plugins>
-  </build>
-
+	<build>
+	  <plugins>
+	    <plugin>
+	      <groupId>org.apache.maven.plugins</groupId>
+	      <artifactId>maven-jar-plugin</artifactId>
+	      <configuration>
+	        <archive>
+	          <manifest>
+	            <addClasspath>true</addClasspath>
+	            <mainClass>de.botshield.CaptureFilterStream</mainClass>
+	          </manifest>
+	        </archive>
+	      </configuration>
+	    </plugin>
+	    <plugin>
+	      <artifactId>maven-assembly-plugin</artifactId>
+	      <executions>
+	        <execution>
+	          <phase>package</phase>
+	          <goals>
+	            <goal>single</goal>
+	          </goals>
+	        </execution>
+	      </executions>
+	      <configuration>
+	        <descriptorRefs>
+	          <descriptorRef>jar-with-dependencies</descriptorRef>
+	        </descriptorRefs>
+	        <archive>
+	          <manifest>
+	            <addClasspath>true</addClasspath>
+	            <mainClass>de.botshield.CaptureFilterStream</mainClass>
+	          </manifest>
+	        </archive>
+	      </configuration>
+	    </plugin>
+	  </plugins>
+	</build>
 	<dependencies>
 		<dependency>
 		    <groupId>org.twitter4j</groupId>
