@@ -29,37 +29,44 @@ import twitter4j.TwitterException;
 import twitter4j.TwitterStream;
 import twitter4j.TwitterStreamFactory;
 
-/*
- * Klasse zum Schreiben von Tweets in eine DB basierend auf Schlagwoertern.
+/**
+ * Klasse zum Schreiben von Tweets in eine DB basierend auf Schlagwörtern.
  */
 public final class CaptureFilterStream {
 
     private PGDBConnection dbConn;
+    private boolean blnWritetoDB = false;
     private final static String PROPERTY_FILE = "dataCollector.properties";
     private final static String PROPERTY_KEY_FOLLOW = "toBeFollowed";
     private final static String PROPERTY_KEY_TOPICS = "trackTopics";
     private final static String PROPERTY_SEPARATOR = ",";
+    private final static String PROPERTY_DATABASEINTEGRATION = "WriteToDatabase";
 
     StatusListener listener = new StatusListener() {
         @Override
         public void onStatus(Status status) {
-            System.out.println("@" + status.getUser().getScreenName() + " - " + status.getText());
-            // dbConn.insertStatus(status);
+            System.out.println("@" + status.getUser().getScreenName() + " - "
+                    + status.getText());
+            if (blnWritetoDB)
+                dbConn.insertStatus(status);
         }
 
         @Override
         public void onDeletionNotice(StatusDeletionNotice statusDeletionNotice) {
-            System.err.println("Got a status deletion notice id:" + statusDeletionNotice.getStatusId());
+            System.err.println("Got a status deletion notice id:"
+                    + statusDeletionNotice.getStatusId());
         }
 
         @Override
         public void onTrackLimitationNotice(int numberOfLimitedStatuses) {
-            System.err.println("Got track limitation notice:" + numberOfLimitedStatuses);
+            System.err.println("Got track limitation notice:"
+                    + numberOfLimitedStatuses);
         }
 
         @Override
         public void onScrubGeo(long userId, long upToStatusId) {
-            System.err.println("Got scrub_geo event userId:" + userId + " upToStatusId:" + upToStatusId);
+            System.err.println("Got scrub_geo event userId:" + userId
+                    + " upToStatusId:" + upToStatusId);
         }
 
         @Override
@@ -78,9 +85,6 @@ public final class CaptureFilterStream {
      * Constructor
      */
     public CaptureFilterStream() {
-        // dbConn=new PGDBConnection();
-        // dbConn.establishConnection("jstrebel", "", "twitter"); //login meiner
-        // Testdatenbank auf localhost
 
         /*
          * Alternative Konfigurationsmethode ohne Properties-Datei
@@ -98,7 +102,19 @@ public final class CaptureFilterStream {
          */
     }
 
-    public void execute(long[] followArray, String[] trackArray) throws TwitterException {
+    /**
+     * @return -1 if connection could not be established
+     */
+    public int setupConnection() {
+        dbConn = new PGDBConnection();
+        return dbConn.establishConnection("jstrebel", "", "twitter"); // login
+        // meiner
+        // Testdatenbank
+        // auf localhost
+    }
+
+    public void execute(long[] followArray, String[] trackArray)
+            throws TwitterException {
         TwitterStream twitterStream = new TwitterStreamFactory().getInstance();
         twitterStream.addListener(listener);
 
@@ -108,20 +124,29 @@ public final class CaptureFilterStream {
     }
 
     public static void main(String[] args) throws TwitterException {
-        // mal als Uebergangsloesung. Das einfachste waere eine kleine Textdatei
-        // mit Schlagwoertern und Usernamen
         Properties props = new Properties();
-
         CaptureFilterStream objCapture = new CaptureFilterStream();
+
         // Read definitions from property file
         try {
-            InputStream is = objCapture.getClass().getClassLoader().getResourceAsStream(PROPERTY_FILE);
+            InputStream is = objCapture.getClass().getClassLoader()
+                    .getResourceAsStream(PROPERTY_FILE);
             props.load(is);
         } catch (IOException ex) {
             ex.printStackTrace();
         }
+
         long[] followArray = readFollow(props);
         String[] trackArray = readTopics(props);
+
+        // Check if database integration is needed
+        if (props.getProperty(PROPERTY_DATABASEINTEGRATION).trim()
+                .equals("true")
+                && objCapture.setupConnection() != -1) {
+            objCapture.setBlnWritetoDB(true);
+        } else {
+            objCapture.setBlnWritetoDB(false);
+        }
 
         // start following
         objCapture.execute(followArray, trackArray);
@@ -177,6 +202,14 @@ public final class CaptureFilterStream {
             }
         }
         return followArray;
+    }
+
+    public boolean isBlnWritetoDB() {
+        return blnWritetoDB;
+    }
+
+    public void setBlnWritetoDB(boolean blnWritetoDB) {
+        this.blnWritetoDB = blnWritetoDB;
     }
 
 }
