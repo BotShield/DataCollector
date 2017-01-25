@@ -66,5 +66,10 @@
 		    <artifactId>twitter4j-stream</artifactId>
 		    <version>4.0.4</version>
 		</dependency>
+                <dependency>
+                    <groupId>org.postgresql</groupId>
+                    <artifactId>postgresql</artifactId>
+                    <version>9.4.1212</version>
+                </dependency>
 	</dependencies>
 </project>
