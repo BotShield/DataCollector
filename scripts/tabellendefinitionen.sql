@@ -74,20 +74,15 @@ Feld WithheldInCountries enthält die String-Verkettung aus der Twitter4J API.
 */
 CREATE  TABLE T_Status
 (
-    ID   bigint PRIMARY KEY,
+    ID   bigint,
+    recorded_at  TIMESTAMP (0) WITH TIME ZONE,
     created_at  TIMESTAMP (0) WITH TIME ZONE ,
     favourites_count integer ,
     geoloc_id  bigint REFERENCES T_Geolocation(ID), 
     username        VARCHAR (4000) ,
     screen_name VARCHAR (4000) ,
-    description     VARCHAR (4000) ,
-    geo_enabled     integer ,
     lang            VARCHAR (4000) ,
     status_place_id  bigint REFERENCES T_Place(ID), 
-    followers_count integer ,
-    friends_count   integer ,
-    listed_count   integer ,
-    loca            VARCHAR (4000),
     withheld_in_countries VARCHAR (4000),
     InReplyToScreenName varchar(4000),
     InReplyToStatusId bigint,
@@ -98,13 +93,13 @@ CREATE  TABLE T_Status
     status_source varchar(4000),
     status_Text varchar(4000),
     status_user_id bigint,
-    WithheldInCountries varchar(4000),
     isFavorited integer,
     isPossiblySensitive integer,
     isRetweet integer,
     isRetweeted integer,
     isRetweetedByMe integer,
-    isTruncated integer
+    isTruncated integer,
+    PRIMARY KEY (ID,recorded_at)
 );
 
 /*
@@ -126,11 +121,14 @@ String	getProfileLinkColor()
 String	getProfileSidebarBorderColor() 
 String	getProfileSidebarFillColor() 
 String	getProfileTextColor() 
-boolean	isShowAllInlineMedia() 
+boolean	isShowAllInlineMedia()
+Da sich das User-Profil im Zeitverlauf ändern kann, brauchen wir einen Zeitstempel im Primary Key. Es macht keinen Sinn, die User-Daten in der DB zu aktualisieren.
+
 */
 CREATE  TABLE T_User
 (
-    ID   bigint PRIMARY KEY,
+    ID   bigint,
+    recorded_at  TIMESTAMP (0) WITH TIME ZONE,
     username        VARCHAR (4000) ,
     screen_name VARCHAR (4000) ,
     created_at  TIMESTAMP (0) WITH TIME ZONE ,
@@ -157,9 +155,10 @@ CREATE  TABLE T_User
 	isProfileUseBackgroundImage integer,
 	isProtected integer,
 	isTranslator integer,
-	isverified  integer
+	isverified  integer,
+	PRIMARY KEY (ID,recorded_at)
 );
-ALTER TABLE T_Status ADD FOREIGN KEY (status_user_id) REFERENCES T_User(ID);
+ALTER TABLE T_Status ADD FOREIGN KEY (status_user_id,recorded_at) REFERENCES T_User(ID,recorded_at);
 
 CREATE  TABLE T_URL
 (
