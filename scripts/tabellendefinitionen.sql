@@ -2,10 +2,19 @@
 -- Passend für eine PostgreSQL 9.6 Datenbank
 -- Status: erledigt (Einschränkugen siehe unten)
 
-DROP SEQUENCE IF EXISTS status_seq;
-CREATE SEQUENCE status_seq; -- eine Sequence, um alle Teilobjekte eines Tweets mit einer Nummer auszustatten.
+DROP SEQUENCE IF EXISTS url_seq,param_seq;
+CREATE SEQUENCE url_seq; -- eine Sequence, um die URLs eines Tweets mit einer Nummer auszustatten.
+CREATE SEQUENCE param_seq; -- eine Sequence für die IDs einer Datensammel-Sitzung.
 
-DROP TABLE IF EXISTS T_Attribut, T_Geolocation, T_Hashtag, T_Symbol, T_URL, T_User_Mention, T_MediaEntitySize, T_Media, T_Entity, T_Place, T_Status , T_User;
+DROP TABLE IF EXISTS T_Attribut, T_Geolocation, T_Hashtag, T_Symbol, T_URL, T_User_Mention, T_MediaEntitySize, T_Media, T_Entity, T_Place, T_Status , T_User,T_DataCollParameter;
+
+CREATE TABLE T_DataCollParameter --Data Collector Parameters
+(
+ ID bigint PRIMARY KEY,
+ track_topics  VARCHAR (4000),
+ datasource VARCHAR (4000) -- streaming or rest 
+);
+
 
 CREATE  TABLE T_Attribut
 (
@@ -75,8 +84,8 @@ Feld WithheldInCountries enthält die String-Verkettung aus der Twitter4J API.
 CREATE  TABLE T_Status
 (
     ID   bigint,
-    recorded_at  TIMESTAMP (0) WITH TIME ZONE,
-    created_at  TIMESTAMP (0) WITH TIME ZONE ,
+    recorded_at  TIMESTAMP WITH TIME ZONE,
+    created_at  TIMESTAMP WITH TIME ZONE ,
     favourites_count integer ,
     geoloc_id  bigint REFERENCES T_Geolocation(ID), 
     username        VARCHAR (4000) ,
@@ -99,6 +108,7 @@ CREATE  TABLE T_Status
     isRetweeted integer,
     isRetweetedByMe integer,
     isTruncated integer,
+    dcparam_id bigint REFERENCES T_DataCollParameter(ID),
     PRIMARY KEY (ID,recorded_at)
 );
 
@@ -123,15 +133,15 @@ String	getProfileSidebarFillColor()
 String	getProfileTextColor() 
 boolean	isShowAllInlineMedia()
 Da sich das User-Profil im Zeitverlauf ändern kann, brauchen wir einen Zeitstempel im Primary Key. Es macht keinen Sinn, die User-Daten in der DB zu aktualisieren.
-
+User und Status sind 1:1 verknüpft, nicht 1:N, wie ich früher dachte.
 */
 CREATE  TABLE T_User
 (
-    ID   bigint,
-    recorded_at  TIMESTAMP (0) WITH TIME ZONE,
+    ID   bigint, --user ID, not status ID!!
+    recorded_at  TIMESTAMP WITH TIME ZONE,
     username        VARCHAR (4000) ,
     screen_name VARCHAR (4000) ,
-    created_at  TIMESTAMP (0) WITH TIME ZONE ,
+    created_at  TIMESTAMP WITH TIME ZONE ,
     description     VARCHAR (4000) ,
     geo_enabled     integer,
     lang            VARCHAR (4000) ,
@@ -140,7 +150,6 @@ CREATE  TABLE T_User
     friends_count   integer ,
     listed_count   integer ,
     loca            VARCHAR (4000),
-    status_id bigint REFERENCES T_Status(ID),
     statuses_count        integer ,
     TimeZone varchar(4000),
     user_URL varchar(4000),
@@ -158,11 +167,12 @@ CREATE  TABLE T_User
 	isverified  integer,
 	PRIMARY KEY (ID,recorded_at)
 );
-ALTER TABLE T_Status ADD FOREIGN KEY (status_user_id,recorded_at) REFERENCES T_User(ID,recorded_at);
+ALTER TABLE T_Status ADD CONSTRAINT fk_uid FOREIGN KEY (status_user_id,recorded_at) REFERENCES T_User(ID,recorded_at);
 
 CREATE  TABLE T_URL
 (
-    ID bigint PRIMARY KEY,
+    ID bigint,
+    recorded_at  TIMESTAMP WITH TIME ZONE,
     display_url   VARCHAR (4000) ,
     expanded_url  VARCHAR (4000) ,
     indices_start integer ,
@@ -170,10 +180,10 @@ CREATE  TABLE T_URL
     url           VARCHAR (4000),
     urltext	  VARCHAR (4000),
     entity_id	  bigint REFERENCES T_Entity(ID),
-    descURL_user_id   bigint REFERENCES T_User(ID)
+    PRIMARY KEY (ID,recorded_at)
 );
 
-ALTER TABLE T_User ADD FOREIGN KEY (URLEntity_id) REFERENCES T_URL(ID);
+ALTER TABLE T_User ADD FOREIGN KEY (URLEntity_id,recorded_at) REFERENCES T_URL(ID,recorded_at);
 
 
 CREATE  TABLE T_User_Mention

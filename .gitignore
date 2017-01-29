@@ -6,4 +6,6 @@ twitter4j.properties
 bin/*
 src/main/resources/*
 /target/
+logfile.*
+logfile
 
