@@ -6,7 +6,7 @@ DROP SEQUENCE IF EXISTS url_seq,param_seq;
 CREATE SEQUENCE url_seq; -- eine Sequence, um die URLs eines Tweets mit einer Nummer auszustatten.
 CREATE SEQUENCE param_seq; -- eine Sequence für die IDs einer Datensammel-Sitzung.
 
-DROP TABLE IF EXISTS T_Attribut, T_Geolocation, T_Hashtag, T_Symbol, T_URL, T_User_Mention, T_MediaEntitySize, T_Media, T_Entity, T_Place, T_Status , T_User,T_DataCollParameter;
+DROP TABLE IF EXISTS T_Attribut, T_Hashtag, T_Symbol, T_URL, T_User_Mention, T_MediaEntitySize, T_Media, T_Entity, T_Place, T_Status , T_User,T_DataCollParameter, T_Geolocation;
 
 CREATE TABLE T_DataCollParameter --Data Collector Parameters
 (
@@ -50,6 +50,7 @@ CREATE  TABLE T_Geolocation
  geocoord_place_id  bigint REFERENCES T_Place(ID)
 );
 
+
 -- Noch ohne ExtendedMedia
 CREATE  TABLE T_Entity
 (      
@@ -80,6 +81,7 @@ Feld contributors fehlt, weil deprecated laut API-Doku
 Keine Ref. Integrität für quoted und retweeted tweets, da sonst eine rekursive Auflösung dieser Tweets erfolgen muss.
 Feld scopes fehlt, weil nur für Twitter-Werbung
 Feld WithheldInCountries enthält die String-Verkettung aus der Twitter4J API.
+T_Geolocation wird entfernt und deren zwei Felder werden dem Status zugeschlagen
 */
 CREATE  TABLE T_Status
 (
@@ -87,7 +89,6 @@ CREATE  TABLE T_Status
     recorded_at  TIMESTAMP WITH TIME ZONE,
     created_at  TIMESTAMP WITH TIME ZONE ,
     favourites_count integer ,
-    geoloc_id  bigint REFERENCES T_Geolocation(ID), 
     username        VARCHAR (4000) ,
     screen_name VARCHAR (4000) ,
     lang            VARCHAR (4000) ,
@@ -109,6 +110,8 @@ CREATE  TABLE T_Status
     isRetweetedByMe integer,
     isTruncated integer,
     dcparam_id bigint REFERENCES T_DataCollParameter(ID),
+    latitude double precision,
+    longitude double precision,
     PRIMARY KEY (ID,recorded_at)
 );
 

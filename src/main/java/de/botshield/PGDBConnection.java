@@ -117,8 +117,8 @@ public class PGDBConnection {
                 + "favourites_count,username,screen_name,lang,withheld_in_countries,"
                 + "InReplyToScreenName,InReplyToStatusId,"
                 + "InReplyToUserId,quoted_status_id,RetweetCount,retweeted_status_id,status_source,isFavorited,"
-                + "isPossiblySensitive,isRetweet,isRetweeted,isRetweetedByMe,isTruncated,recorded_at,status_user_id) "
-                + "values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+                + "isPossiblySensitive,isRetweet,isRetweeted,isRetweetedByMe,isTruncated,recorded_at,status_user_id,latitude,longitude) "
+                + "values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
         PreparedStatement stInsUser = null;
         String strInsUser = "insert into T_User(ID,recorded_at,"
@@ -133,9 +133,15 @@ public class PGDBConnection {
         String strInsURL = "insert into T_URL(ID,recorded_at,display_url,expanded_url,"
                 + "indices_start,indices_end,url,urltext,entity_id) values (?,?,?,?,?,?,?,?,?)";
 
+        PreparedStatement stInsPlace = null;
+        String strInsPlace = "insert into T_Place(ID,pname,pfullname,place_url,bb_type,geo_type,country,country_code,"
+                + "place_type,street_address,contained_place_id) values (?,?,?,?,?,?,?,?,?,?,?)";
+
         Timestamp tsrecorded_at = new Timestamp(Calendar.getInstance()
                 .getTimeInMillis());
         long lURLid = -1;
+
+        // TODO: code zum Speichern des Place
 
         try {
             // schreibe URL-Objekt
@@ -232,7 +238,6 @@ public class PGDBConnection {
             stInsStatus.setTimestamp(3, new Timestamp(twStatus.getCreatedAt()
                     .getTime()));
             stInsStatus.setInt(4, twStatus.getFavoriteCount());
-            // geoloc_id bigint REFERENCES T_Geolocation(ID),
             stInsStatus.setString(5, twStatus.getUser().getName());
             stInsStatus.setString(6, twStatus.getUser().getScreenName());
             stInsStatus.setString(7, twStatus.getLang());
@@ -266,7 +271,18 @@ public class PGDBConnection {
             if (twStatus.getUser() != null) {
                 stInsStatus.setLong(23, twStatus.getUser().getId());
             } else {
-                stInsStatus.setNull(24, Types.BIGINT);
+                stInsStatus.setNull(23, Types.BIGINT);
+            }
+
+            // Geolocation des Tweets
+            if (twStatus.getGeoLocation() != null) {
+                stInsStatus.setDouble(24, twStatus.getGeoLocation()
+                        .getLatitude());
+                stInsStatus.setDouble(25, twStatus.getGeoLocation()
+                        .getLongitude());
+            } else {
+                stInsStatus.setNull(24, Types.DOUBLE);
+                stInsStatus.setNull(25, Types.DOUBLE);
             }
 
             stInsStatus.executeUpdate();
