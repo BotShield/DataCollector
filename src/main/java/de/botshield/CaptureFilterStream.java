@@ -45,8 +45,7 @@ public final class CaptureFilterStream {
     StatusListener listener = new StatusListener() {
         @Override
         public void onStatus(Status status) {
-            System.out.println("@" + status.getUser().getScreenName() + " - "
-                    + status.getText());
+            System.out.println("@" + status.getUser().getScreenName());
             if (blnWritetoDB)
                 dbConn.insertStatus(status);
         }
@@ -76,7 +75,10 @@ public final class CaptureFilterStream {
 
         @Override
         public void onException(Exception ex) {
-            dbConn.closeConnection();
+            // TODO: sauberer Abbau der DB Connection bei Programmende
+            // hier kein closeConnection, da jede SQLException sonst alle
+            // zukünftigen Schreibprozess unmöglich macht
+            // dbConn.closeConnection();
             ex.printStackTrace();
         }
     };
@@ -96,7 +98,7 @@ public final class CaptureFilterStream {
          * "**************************************************")
          * .setOAuthAccessTokenSecret(
          * "******************************************");
-         *
+         * 
          * TwitterFactory tf = new TwitterFactory(cb.build()); Twitter twitter =
          * tf.getInstance();
          */

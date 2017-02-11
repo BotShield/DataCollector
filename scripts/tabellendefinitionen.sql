@@ -2,9 +2,11 @@
 -- Passend für eine PostgreSQL 9.6 Datenbank
 -- Status: erledigt (Einschränkugen siehe unten)
 
-DROP SEQUENCE IF EXISTS url_seq,param_seq;
+DROP SEQUENCE IF EXISTS url_seq,param_seq,place_seq;
 CREATE SEQUENCE url_seq; -- eine Sequence, um die URLs eines Tweets mit einer Nummer auszustatten.
 CREATE SEQUENCE param_seq; -- eine Sequence für die IDs einer Datensammel-Sitzung.
+CREATE SEQUENCE place_seq; -- eine Sequence für die IDs eines Place.
+
 
 DROP TABLE IF EXISTS T_Attribut, T_Hashtag, T_Symbol, T_URL, T_User_Mention, T_MediaEntitySize, T_Media, T_Entity, T_Place, T_Status , T_User,T_DataCollParameter, T_Geolocation;
 

@@ -10,6 +10,7 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.Calendar;
 
+import twitter4j.Place;
 import twitter4j.Status;
 import twitter4j.URLEntity;
 import twitter4j.User;
@@ -81,10 +82,10 @@ public class PGDBConnection {
              * db.createStatement(); ResultSet rs =
              * st.executeQuery("select nextval('param_seq')"); rs.next(); long
              * lPARAMid = rs.getLong(1); rs.close(); st.close();
-             *
+             * 
              * stInsDCPARAM.setLong(1, lPARAMid); stInsDCPARAM.setString(2,
              * strTopics);
-             *
+             * 
              * stInsDCPARAM.executeUpdate(); db.commit(); stInsDCPARAM.close();
              */
             // TODO: aaociate Status with param ID
@@ -117,8 +118,8 @@ public class PGDBConnection {
                 + "favourites_count,username,screen_name,lang,withheld_in_countries,"
                 + "InReplyToScreenName,InReplyToStatusId,"
                 + "InReplyToUserId,quoted_status_id,RetweetCount,retweeted_status_id,status_source,isFavorited,"
-                + "isPossiblySensitive,isRetweet,isRetweeted,isRetweetedByMe,isTruncated,recorded_at,status_user_id,latitude,longitude) "
-                + "values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+                + "isPossiblySensitive,isRetweet,isRetweeted,isRetweetedByMe,isTruncated,recorded_at,status_user_id,latitude,longitude,status_place_id) "
+                + "values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
         PreparedStatement stInsUser = null;
         String strInsUser = "insert into T_User(ID,recorded_at,"
@@ -140,43 +141,76 @@ public class PGDBConnection {
         Timestamp tsrecorded_at = new Timestamp(Calendar.getInstance()
                 .getTimeInMillis());
         long lURLid = -1;
-
-        // TODO: code zum Speichern des Place
+        long lPlaceid = -1;
 
         try {
-            // schreibe URL-Objekt
 
-            if (twStatus.getUser() != null
-                    && twStatus.getUser().getURLEntity() != null) {
+            // Schreibe Place Objekt
+            if (twStatus.getPlace() != null) {
                 // TODO: mache db.prepareStatement() nur einmal pro Statement,
                 // nicht bei jedem Methodenaufruf
-                stInsURL = db.prepareStatement(strInsURL);
-                URLEntity twURL = null;
-                twURL = twStatus.getUser().getURLEntity();
+                stInsPlace = db.prepareStatement(strInsPlace);
 
-                // hole Sequenznummer für die URL
+                Place twPlace = null;
+                twPlace = twStatus.getPlace();
+
+                // hole Sequenznummer für den Place
                 Statement st = db.createStatement();
-                ResultSet rs = st.executeQuery("select nextval('url_seq')");
+                ResultSet rs = st.executeQuery("select nextval('place_seq')");
                 rs.next();
-                lURLid = rs.getLong(1);
+                lPlaceid = rs.getLong(1);
                 rs.close();
                 st.close();
                 // setze Parameter
-                stInsURL.setLong(1, lURLid);
-                stInsURL.setTimestamp(2, tsrecorded_at);
-                stInsURL.setString(3, twURL.getDisplayURL());
-                stInsURL.setString(4, twURL.getExpandedURL());
-                stInsURL.setInt(5, twURL.getStart());
-                stInsURL.setInt(6, twURL.getEnd());
-                stInsURL.setString(7, twURL.getURL());
-                stInsURL.setString(8, twURL.getText());
-                stInsURL.setNull(9, Types.BIGINT); // TODO: entity_id bigint
-                // noch zu setzen, wenn
-                // Entities implementiert
-                // sind.
-                // REFERENCES T_Entity(ID)
-                stInsURL.executeUpdate();
+                stInsPlace.setLong(1, lPlaceid);
+                stInsPlace.setString(2, twPlace.getName());
+                stInsPlace.setString(3, twPlace.getFullName());
+                stInsPlace.setString(4, twPlace.getURL());
+                stInsPlace.setString(5, twPlace.getBoundingBoxType());
+                stInsPlace.setString(6, twPlace.getGeometryType());
+                stInsPlace.setString(7, twPlace.getCountry());
+                stInsPlace.setString(8, twPlace.getCountryCode());
+                stInsPlace.setString(9, twPlace.getPlaceType());
+                stInsPlace.setString(10, twPlace.getStreetAddress());
+                // TODO: rekursive Auflösung verschachtelter Places
+                stInsPlace.setNull(11, Types.BIGINT);
+
+                stInsPlace.executeUpdate();
             }
+
+            // schreibe URL-Objekt
+            if (twStatus.getUser() != null)
+                if (twStatus.getUser().getURLEntity() != null) {
+                    // TODO: mache db.prepareStatement() nur einmal pro
+                    // Statement,
+                    // nicht bei jedem Methodenaufruf
+                    stInsURL = db.prepareStatement(strInsURL);
+                    URLEntity twURL = null;
+                    twURL = twStatus.getUser().getURLEntity();
+
+                    // hole Sequenznummer für die URL
+                    Statement st = db.createStatement();
+                    ResultSet rs = st.executeQuery("select nextval('url_seq')");
+                    rs.next();
+                    lURLid = rs.getLong(1);
+                    rs.close();
+                    st.close();
+                    // setze Parameter
+                    stInsURL.setLong(1, lURLid);
+                    stInsURL.setTimestamp(2, tsrecorded_at);
+                    stInsURL.setString(3, twURL.getDisplayURL());
+                    stInsURL.setString(4, twURL.getExpandedURL());
+                    stInsURL.setInt(5, twURL.getStart());
+                    stInsURL.setInt(6, twURL.getEnd());
+                    stInsURL.setString(7, twURL.getURL());
+                    stInsURL.setString(8, twURL.getText());
+                    stInsURL.setNull(9, Types.BIGINT); // TODO: entity_id bigint
+                    // noch zu setzen, wenn
+                    // Entities implementiert
+                    // sind.
+                    // REFERENCES T_Entity(ID)
+                    stInsURL.executeUpdate();
+                }
 
             // schreibe User-Objekt
             stInsUser = db.prepareStatement(strInsUser);
@@ -241,7 +275,7 @@ public class PGDBConnection {
             stInsStatus.setString(5, twStatus.getUser().getName());
             stInsStatus.setString(6, twStatus.getUser().getScreenName());
             stInsStatus.setString(7, twStatus.getLang());
-            // status_place_id bigint REFERENCES T_Place(ID)
+
             if (twStatus.getWithheldInCountries() != null) {
                 stInsStatus.setString(8, twStatus.getWithheldInCountries()
                         .toString());
@@ -284,16 +318,29 @@ public class PGDBConnection {
                 stInsStatus.setNull(24, Types.DOUBLE);
                 stInsStatus.setNull(25, Types.DOUBLE);
             }
+            // Place
+            if (lPlaceid != -1) {
+                stInsStatus.setLong(26, lPlaceid);
+            } else {
+                stInsStatus.setNull(26, Types.BIGINT);
+            }
 
             stInsStatus.executeUpdate();
 
             db.commit();
-            stInsStatus.close();
-            stInsUser.close();
-            stInsURL.close();
+            if (stInsStatus != null)
+                stInsStatus.close();
+            if (stInsUser != null)
+                stInsUser.close();
+            if (stInsURL != null)
+                stInsURL.close();
+            if (stInsPlace != null)
+                stInsPlace.close();
             return 0;
         } catch (SQLException e) {
-            System.err.println(e.toString());
+            // System.err.println(e.toString());
+            e.printStackTrace();
+            System.err.println(e.getSQLState());
             if (db != null) {
                 try {
                     System.err.print("Transaction is being rolled back");
@@ -304,6 +351,8 @@ public class PGDBConnection {
                         stInsUser.close();
                     if (stInsURL != null)
                         stInsURL.close();
+                    if (stInsPlace != null)
+                        stInsPlace.close();
                 } catch (SQLException excep) {
                     System.err.println(excep.toString());
                 }
