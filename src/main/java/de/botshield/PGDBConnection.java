@@ -10,12 +10,15 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.Calendar;
 
+import twitter4j.GeoLocation;
 import twitter4j.Place;
 import twitter4j.Status;
 import twitter4j.URLEntity;
 import twitter4j.User;
 
 /**
+ * Klasse zum Schreiben des Twitter Datenmodells in eine relationale Datenbank
+ * (Schema scripts/tabellendefinitionen.sql)
  *
  * @author jstrebel
  *
@@ -88,7 +91,7 @@ public class PGDBConnection {
              * 
              * stInsDCPARAM.executeUpdate(); db.commit(); stInsDCPARAM.close();
              */
-            // TODO: aaociate Status with param ID
+            // TODO: associate Status with param ID
             return 0;
         } catch (SQLException e) {
             /*
@@ -127,8 +130,8 @@ public class PGDBConnection {
                 + "geo_enabled,lang,followers_count,favourites_count,friends_count, listed_count,loca,"
                 + "statuses_count,TimeZone,user_URL,UtcOffset,WithheldInCountries,isContributorsEnabled,"
                 + "isDefaultProfile,isDefaultProfileImage,isFollowRequestSent,isProfileBackgroundTiled,"
-                + "isProfileUseBackgroundImage,isProtected,isTranslator,isverified,URLEntity_id) "
-                + "values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+                + "isProfileUseBackgroundImage,isProtected,isTranslator,isverified,URLEntity_id,DescURLEntity_id) "
+                + "values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
         PreparedStatement stInsURL = null;
         String strInsURL = "insert into T_URL(ID,recorded_at,display_url,expanded_url,"
@@ -138,10 +141,35 @@ public class PGDBConnection {
         String strInsPlace = "insert into T_Place(ID,pname,pfullname,place_url,bb_type,geo_type,country,country_code,"
                 + "place_type,street_address,contained_place_id) values (?,?,?,?,?,?,?,?,?,?,?)";
 
+        PreparedStatement stInsEntity = null;
+        String strInsEntity = "insert into T_Entity(ID) values (?)";
+
+        /*
+         * Code aus
+         * twitter4j/twitter4j-core/src/internal-json/java/twitter4j/JSONImplFactory
+         * .java, um zu verstehen, wie die das zweidimensionale
+         * GeoLocation-Array der BoundingBox in Place aufgebaut ist
+         * 
+         * static GeoLocation[][] coordinatesAsGeoLocationArray(JSONArray
+         * coordinates) throws TwitterException { try { GeoLocation[][]
+         * boundingBox = new GeoLocation[coordinates.length()][]; for (int i =
+         * 0; i < coordinates.length(); i++) { JSONArray array =
+         * coordinates.getJSONArray(i); boundingBox[i] = new
+         * GeoLocation[array.length()]; for (int j = 0; j < array.length(); j++)
+         * { JSONArray coordinate = array.getJSONArray(j); boundingBox[i][j] =
+         * new GeoLocation(coordinate.getDouble(1), coordinate.getDouble(0)); }
+         * } return boundingBox; } catch (JSONException jsone) { throw new
+         * TwitterException(jsone); } }
+         */
+        PreparedStatement stInsGeoLoc = null;
+        String strInsGeoLoc = "insert into T_Geolocation(ID,latitude, longitude, bboxcoord_place_id, geocoord_place_id)"
+                + " values (?,?,?,?,?)";
+
         Timestamp tsrecorded_at = new Timestamp(Calendar.getInstance()
                 .getTimeInMillis());
         long lURLid = -1;
         long lPlaceid = -1;
+        long lGeoLocid = -1;
 
         try {
 
@@ -173,17 +201,83 @@ public class PGDBConnection {
                 stInsPlace.setString(9, twPlace.getPlaceType());
                 stInsPlace.setString(10, twPlace.getStreetAddress());
                 // TODO: rekursive Auflösung verschachtelter Places
+                // nicht wichtig, da Place sowieso nicht oft vorkommt
                 stInsPlace.setNull(11, Types.BIGINT);
 
                 stInsPlace.executeUpdate();
-            }
+
+                // schreibe BoundingBox aus Place
+                // Durchlaufe das doppelte Array GeoLocation[0][j] und schreibe
+                // die Einzelkoordinaten in die DB
+                // Annahme: es gibt nur ein einziges Polygon als Bounding Box
+                GeoLocation[][] arrGeo = null;
+                arrGeo = twPlace.getBoundingBoxCoordinates();
+
+                if (arrGeo != null) {
+                    GeoLocation[] arrbboxloc = arrGeo[0];
+                    Statement st1 = db.createStatement();
+                    stInsGeoLoc = db.prepareStatement(strInsGeoLoc);
+
+                    // Durchlaufe alle Ecken des Polygons
+                    for (GeoLocation element : arrbboxloc) {
+                        // hole id aus Sequence geoloc_seq
+                        ResultSet rs1 = st1
+                                .executeQuery("select nextval('geoloc_seq')");
+                        rs1.next();
+                        lGeoLocid = rs1.getLong(1);
+                        rs1.close();
+
+                        // schreibe Attribute
+                        // ID,latitude, longitude, bboxcoord_place_id,
+                        // geocoord_place_id
+                        stInsGeoLoc.setLong(1, lGeoLocid);
+                        stInsGeoLoc.setDouble(2, element.getLatitude());
+                        stInsGeoLoc.setDouble(3, element.getLongitude());
+                        stInsGeoLoc.setLong(4, lPlaceid);
+                        stInsGeoLoc.setNull(5, Types.BIGINT);
+                        stInsGeoLoc.executeUpdate();
+                    }// for
+                    st1.close();
+                    stInsGeoLoc.close();
+                }// if
+
+                // schreibe Geometry aus Place
+                arrGeo = null;
+                arrGeo = twPlace.getGeometryCoordinates();
+
+                if (arrGeo != null) {
+                    GeoLocation[] arrbboxloc = arrGeo[0];
+                    Statement st1 = db.createStatement();
+                    stInsGeoLoc = db.prepareStatement(strInsGeoLoc);
+
+                    // Durchlaufe alle Ecken des Polygons
+                    for (GeoLocation element : arrbboxloc) {
+                        // hole id aus Sequence geoloc_seq
+                        ResultSet rs1 = st1
+                                .executeQuery("select nextval('geoloc_seq')");
+                        rs1.next();
+                        lGeoLocid = rs1.getLong(1);
+                        rs1.close();
+
+                        // schreibe Attribute
+                        // ID,latitude, longitude, bboxcoord_place_id,
+                        // geocoord_place_id
+                        stInsGeoLoc.setLong(1, lGeoLocid);
+                        stInsGeoLoc.setDouble(2, element.getLatitude());
+                        stInsGeoLoc.setDouble(3, element.getLongitude());
+                        stInsGeoLoc.setNull(4, Types.BIGINT);
+                        stInsGeoLoc.setLong(5, lPlaceid);
+                        stInsGeoLoc.executeUpdate();
+                    }// for
+                    st1.close();
+                    stInsGeoLoc.close();
+                }// if arrgeo != null
+
+            }// Place != null
 
             // schreibe URL-Objekt
             if (twStatus.getUser() != null)
                 if (twStatus.getUser().getURLEntity() != null) {
-                    // TODO: mache db.prepareStatement() nur einmal pro
-                    // Statement,
-                    // nicht bei jedem Methodenaufruf
                     stInsURL = db.prepareStatement(strInsURL);
                     URLEntity twURL = null;
                     twURL = twStatus.getUser().getURLEntity();
@@ -256,11 +350,14 @@ public class PGDBConnection {
                 stInsUser.setInt(25, (twUser.isProtected() ? 1 : 0));
                 stInsUser.setInt(26, (twUser.isTranslator() ? 1 : 0));
                 stInsUser.setInt(27, (twUser.isVerified() ? 1 : 0));
-                if (lURLid != -1) {
+                if (lURLid != -1) { // TODO: nicht die URL_id einfügen, sondern
+                                    // die Entity ID
                     stInsUser.setLong(28, lURLid);
                 } else {
                     stInsUser.setNull(28, Types.BIGINT);
                 }
+                stInsUser.setNull(29, Types.BIGINT); // TODO: DescURLEntity_id
+
                 stInsUser.executeUpdate();
             }
 
@@ -324,6 +421,10 @@ public class PGDBConnection {
             } else {
                 stInsStatus.setNull(26, Types.BIGINT);
             }
+
+            // TODO: getExtendedMediaEntities, getHashtagEntities,
+            // getMediaEntities, getSymbolEntities, getURLEntities,
+            // getUserMentionEntities
 
             stInsStatus.executeUpdate();
 
