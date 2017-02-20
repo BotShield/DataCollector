@@ -2,11 +2,12 @@
 -- Passend für eine PostgreSQL 9.6 Datenbank
 -- Status: erledigt (Einschränkugen siehe unten)
 
-DROP SEQUENCE IF EXISTS url_seq,param_seq,place_seq,geoloc_seq;
+DROP SEQUENCE IF EXISTS url_seq,param_seq,place_seq,geoloc_seq,entity_seq;
 CREATE SEQUENCE url_seq; -- eine Sequence, um die URLs eines Tweets mit einer Nummer auszustatten.
 CREATE SEQUENCE param_seq; -- eine Sequence für die IDs einer Datensammel-Sitzung.
 CREATE SEQUENCE place_seq; -- eine Sequence für die IDs eines Place.
 CREATE SEQUENCE geoloc_seq; -- eine Sequence für die IDs einer Geolocation.
+CREATE SEQUENCE entity_seq; -- eine Sequence für die IDs einer Geolocation.
 
 DROP TABLE IF EXISTS T_Attribut, T_Hashtag, T_Symbol, T_URL, T_User_Mention, T_MediaEntitySize, T_Media, T_Entity, T_Place, T_Status , T_User,T_DataCollParameter, T_Geolocation;
 
@@ -182,7 +183,6 @@ ALTER TABLE T_Status ADD CONSTRAINT fk_uid FOREIGN KEY (status_user_id,recorded_
 CREATE  TABLE T_URL
 (
     ID bigint,
-    recorded_at  TIMESTAMP WITH TIME ZONE,
     display_url   VARCHAR (4000) ,
     expanded_url  VARCHAR (4000) ,
     indices_start integer ,
@@ -190,11 +190,11 @@ CREATE  TABLE T_URL
     url           VARCHAR (4000),
     urltext	  VARCHAR (4000),
     entity_id	  bigint REFERENCES T_Entity(ID),
-    PRIMARY KEY (ID,recorded_at)
+    PRIMARY KEY (ID)
 );
 
-ALTER TABLE T_User ADD FOREIGN KEY (URLEntity_id,recorded_at) REFERENCES T_URL(ID,recorded_at);
-
+ALTER TABLE T_User ADD FOREIGN KEY (URLEntity_id) REFERENCES T_Entity(ID);
+ALTER TABLE T_User ADD FOREIGN KEY (DescURLEntity_id) REFERENCES T_Entity(ID);
 
 CREATE  TABLE T_User_Mention
 (

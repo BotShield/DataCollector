@@ -85,10 +85,10 @@ public class PGDBConnection {
              * db.createStatement(); ResultSet rs =
              * st.executeQuery("select nextval('param_seq')"); rs.next(); long
              * lPARAMid = rs.getLong(1); rs.close(); st.close();
-             * 
+             *
              * stInsDCPARAM.setLong(1, lPARAMid); stInsDCPARAM.setString(2,
              * strTopics);
-             * 
+             *
              * stInsDCPARAM.executeUpdate(); db.commit(); stInsDCPARAM.close();
              */
             // TODO: associate Status with param ID
@@ -106,10 +106,7 @@ public class PGDBConnection {
     }
 
     /**
-     * Vorgehen beim Schreiben des Status: 1. T_Geolocation schreiben --> führt
-     * evtl. dazu, me 2. T_Place schreiben 3. User schreiben 4. Status schreiben
-     * Das ganze sollte in einer Transaktionsklammer passieren, um bei Fehlern
-     * keine Inkonsistenzen in den Daten zu erzeugen
+     * Inserts Status object into database.
      *
      * @param twStatus
      *            The Twitter4J Status interface
@@ -134,8 +131,8 @@ public class PGDBConnection {
                 + "values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
         PreparedStatement stInsURL = null;
-        String strInsURL = "insert into T_URL(ID,recorded_at,display_url,expanded_url,"
-                + "indices_start,indices_end,url,urltext,entity_id) values (?,?,?,?,?,?,?,?,?)";
+        String strInsURL = "insert into T_URL(ID,display_url,expanded_url,"
+                + "indices_start,indices_end,url,urltext,entity_id) values (?,?,?,?,?,?,?,?)";
 
         PreparedStatement stInsPlace = null;
         String strInsPlace = "insert into T_Place(ID,pname,pfullname,place_url,bb_type,geo_type,country,country_code,"
@@ -149,7 +146,7 @@ public class PGDBConnection {
          * twitter4j/twitter4j-core/src/internal-json/java/twitter4j/JSONImplFactory
          * .java, um zu verstehen, wie die das zweidimensionale
          * GeoLocation-Array der BoundingBox in Place aufgebaut ist
-         * 
+         *
          * static GeoLocation[][] coordinatesAsGeoLocationArray(JSONArray
          * coordinates) throws TwitterException { try { GeoLocation[][]
          * boundingBox = new GeoLocation[coordinates.length()][]; for (int i =
@@ -167,7 +164,9 @@ public class PGDBConnection {
 
         Timestamp tsrecorded_at = new Timestamp(Calendar.getInstance()
                 .getTimeInMillis());
-        long lURLid = -1;
+
+        long lURLEntityid = -1;
+        long lDescURLEntityid = -1; // User Description URL Entitites
         long lPlaceid = -1;
         long lGeoLocid = -1;
 
@@ -277,34 +276,95 @@ public class PGDBConnection {
 
             // schreibe URL-Objekt
             if (twStatus.getUser() != null)
-                if (twStatus.getUser().getURLEntity() != null) {
-                    stInsURL = db.prepareStatement(strInsURL);
-                    URLEntity twURL = null;
-                    twURL = twStatus.getUser().getURLEntity();
 
-                    // hole Sequenznummer für die URL
-                    Statement st = db.createStatement();
-                    ResultSet rs = st.executeQuery("select nextval('url_seq')");
+                // User's URL
+                // leider kann es das URLEntity-Objekt geben, ohne dass dessen
+                // Felder gefüllt sind.
+                if (twStatus.getUser().getURLEntity() != null)
+                    if (!twStatus.getUser().getURLEntity().getURL().isEmpty()) {
+                        stInsURL = db.prepareStatement(strInsURL);
+                        stInsEntity = db.prepareStatement(strInsEntity);
+
+                        URLEntity twURL = null;
+                        long lURLid = -1;
+
+                        twURL = twStatus.getUser().getURLEntity();
+
+                        // hole Sequenznummer für die URL und die Entity
+                        Statement st = db.createStatement();
+                        ResultSet rs = st
+                                .executeQuery("select nextval('url_seq'),nextval('entity_seq')");
+                        rs.next();
+                        lURLid = rs.getLong(1);
+                        lURLEntityid = rs.getLong(2);
+                        rs.close();
+                        st.close();
+
+                        // schreibe Entity zuerst
+                        stInsEntity.setLong(1, lURLEntityid);
+                        stInsEntity.executeUpdate();
+
+                        // dann schreibe URL
+                        stInsURL.setLong(1, lURLid);
+                        stInsURL.setString(2, twURL.getDisplayURL());
+                        stInsURL.setString(3, twURL.getExpandedURL());
+                        stInsURL.setInt(4, twURL.getStart());
+                        stInsURL.setInt(5, twURL.getEnd());
+                        stInsURL.setString(6, twURL.getURL());
+                        stInsURL.setString(7, twURL.getText());
+                        stInsURL.setLong(8, lURLEntityid);
+                        stInsURL.executeUpdate();
+                        stInsURL.close();
+                        stInsEntity.close();
+                    } // if getURLEntity!=null
+
+            // User Description URL Entities
+            if (twStatus.getUser().getDescriptionURLEntities() != null) {
+                stInsURL = db.prepareStatement(strInsURL);
+                stInsEntity = db.prepareStatement(strInsEntity);
+
+                URLEntity[] arrURL = null;
+                long lURLid = -1;
+
+                arrURL = twStatus.getUser().getDescriptionURLEntities();
+
+                // get Entity ID
+                Statement st = db.createStatement();
+                ResultSet rs = st.executeQuery("select nextval('entity_seq')");
+                rs.next();
+                lDescURLEntityid = rs.getLong(1);
+                rs.close();
+                st.close();
+
+                // schreibe Entity zuerst
+                stInsEntity.setLong(1, lDescURLEntityid);
+                stInsEntity.executeUpdate();
+
+                for (URLEntity elem : arrURL) {
+                    // hole Sequenznummer für die URL und die Entity
+                    st = db.createStatement();
+                    rs = st.executeQuery("select nextval('url_seq')");
                     rs.next();
                     lURLid = rs.getLong(1);
                     rs.close();
                     st.close();
-                    // setze Parameter
+
+                    // dann schreibe URL
                     stInsURL.setLong(1, lURLid);
-                    stInsURL.setTimestamp(2, tsrecorded_at);
-                    stInsURL.setString(3, twURL.getDisplayURL());
-                    stInsURL.setString(4, twURL.getExpandedURL());
-                    stInsURL.setInt(5, twURL.getStart());
-                    stInsURL.setInt(6, twURL.getEnd());
-                    stInsURL.setString(7, twURL.getURL());
-                    stInsURL.setString(8, twURL.getText());
-                    stInsURL.setNull(9, Types.BIGINT); // TODO: entity_id bigint
-                    // noch zu setzen, wenn
-                    // Entities implementiert
-                    // sind.
-                    // REFERENCES T_Entity(ID)
+                    stInsURL.setString(2, elem.getDisplayURL());
+                    stInsURL.setString(3, elem.getExpandedURL());
+                    stInsURL.setInt(4, elem.getStart());
+                    stInsURL.setInt(5, elem.getEnd());
+                    stInsURL.setString(6, elem.getURL());
+                    stInsURL.setString(7, elem.getText());
+                    stInsURL.setLong(8, lDescURLEntityid);
                     stInsURL.executeUpdate();
-                }
+
+                } // for
+
+                stInsURL.close();
+                stInsEntity.close();
+            } // if getDescriptionURLEntities!=null
 
             // schreibe User-Objekt
             stInsUser = db.prepareStatement(strInsUser);
@@ -350,15 +410,21 @@ public class PGDBConnection {
                 stInsUser.setInt(25, (twUser.isProtected() ? 1 : 0));
                 stInsUser.setInt(26, (twUser.isTranslator() ? 1 : 0));
                 stInsUser.setInt(27, (twUser.isVerified() ? 1 : 0));
-                if (lURLid != -1) { // TODO: nicht die URL_id einfügen, sondern
-                                    // die Entity ID
-                    stInsUser.setLong(28, lURLid);
+
+                if (lURLEntityid != -1) {
+                    stInsUser.setLong(28, lURLEntityid);
                 } else {
                     stInsUser.setNull(28, Types.BIGINT);
                 }
-                stInsUser.setNull(29, Types.BIGINT); // TODO: DescURLEntity_id
+
+                if (lDescURLEntityid != -1) {
+                    stInsUser.setLong(29, lDescURLEntityid);
+                } else {
+                    stInsUser.setNull(29, Types.BIGINT);
+                }
 
                 stInsUser.executeUpdate();
+                stInsUser.close();
             }
 
             // schreibe Status-objekt
@@ -431,8 +497,6 @@ public class PGDBConnection {
             db.commit();
             if (stInsStatus != null)
                 stInsStatus.close();
-            if (stInsUser != null)
-                stInsUser.close();
             if (stInsURL != null)
                 stInsURL.close();
             if (stInsPlace != null)
