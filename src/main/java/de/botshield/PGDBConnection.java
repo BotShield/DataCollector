@@ -106,7 +106,8 @@ public class PGDBConnection {
     }
 
     /**
-     * Inserts Status object into database.
+     * Inserts Status object into database. Extended Media Entities are not
+     * supported.
      *
      * @param twStatus
      *            The Twitter4J Status interface
@@ -118,8 +119,9 @@ public class PGDBConnection {
                 + "favourites_count,username,screen_name,lang,withheld_in_countries,"
                 + "InReplyToScreenName,InReplyToStatusId,"
                 + "InReplyToUserId,quoted_status_id,RetweetCount,retweeted_status_id,status_source,isFavorited,"
-                + "isPossiblySensitive,isRetweet,isRetweeted,isRetweetedByMe,isTruncated,recorded_at,status_user_id,latitude,longitude,status_place_id) "
-                + "values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+                + "isPossiblySensitive,isRetweet,isRetweeted,isRetweetedByMe,isTruncated,recorded_at,"
+                + "status_user_id,latitude,longitude,status_place_id,URLEntities_id) "
+                + "values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
         PreparedStatement stInsUser = null;
         String strInsUser = "insert into T_User(ID,recorded_at,"
@@ -169,6 +171,7 @@ public class PGDBConnection {
         long lDescURLEntityid = -1; // User Description URL Entitites
         long lPlaceid = -1;
         long lGeoLocid = -1;
+        long lStatusURLEntitiesid = -1;
 
         try {
 
@@ -320,50 +323,53 @@ public class PGDBConnection {
 
             // User Description URL Entities
             if (twStatus.getUser().getDescriptionURLEntities() != null) {
-                stInsURL = db.prepareStatement(strInsURL);
-                stInsEntity = db.prepareStatement(strInsEntity);
-
                 URLEntity[] arrURL = null;
                 long lURLid = -1;
-
                 arrURL = twStatus.getUser().getDescriptionURLEntities();
 
-                // get Entity ID
-                Statement st = db.createStatement();
-                ResultSet rs = st.executeQuery("select nextval('entity_seq')");
-                rs.next();
-                lDescURLEntityid = rs.getLong(1);
-                rs.close();
-                st.close();
-
-                // schreibe Entity zuerst
-                stInsEntity.setLong(1, lDescURLEntityid);
-                stInsEntity.executeUpdate();
-
-                for (URLEntity elem : arrURL) {
-                    // hole Sequenznummer für die URL und die Entity
-                    st = db.createStatement();
-                    rs = st.executeQuery("select nextval('url_seq')");
+                // gibt es überhaupt Datensätze?
+                if (arrURL.length > 0) {
+                    stInsURL = db.prepareStatement(strInsURL);
+                    stInsEntity = db.prepareStatement(strInsEntity);
+                    // get Entity ID
+                    Statement st = db.createStatement();
+                    ResultSet rs = st
+                            .executeQuery("select nextval('entity_seq')");
                     rs.next();
-                    lURLid = rs.getLong(1);
+                    lDescURLEntityid = rs.getLong(1);
                     rs.close();
                     st.close();
 
-                    // dann schreibe URL
-                    stInsURL.setLong(1, lURLid);
-                    stInsURL.setString(2, elem.getDisplayURL());
-                    stInsURL.setString(3, elem.getExpandedURL());
-                    stInsURL.setInt(4, elem.getStart());
-                    stInsURL.setInt(5, elem.getEnd());
-                    stInsURL.setString(6, elem.getURL());
-                    stInsURL.setString(7, elem.getText());
-                    stInsURL.setLong(8, lDescURLEntityid);
-                    stInsURL.executeUpdate();
+                    // schreibe Entity zuerst
+                    stInsEntity.setLong(1, lDescURLEntityid);
+                    stInsEntity.executeUpdate();
 
-                } // for
+                    for (URLEntity elem : arrURL) {
+                        // hole Sequenznummer für die URL
+                        st = db.createStatement();
+                        rs = st.executeQuery("select nextval('url_seq')");
+                        rs.next();
+                        lURLid = rs.getLong(1);
+                        rs.close();
+                        st.close();
 
-                stInsURL.close();
-                stInsEntity.close();
+                        // dann schreibe URL
+                        stInsURL.setLong(1, lURLid);
+                        stInsURL.setString(2, elem.getDisplayURL());
+                        stInsURL.setString(3, elem.getExpandedURL());
+                        stInsURL.setInt(4, elem.getStart());
+                        stInsURL.setInt(5, elem.getEnd());
+                        stInsURL.setString(6, elem.getURL());
+                        stInsURL.setString(7, elem.getText());
+                        stInsURL.setLong(8, lDescURLEntityid);
+                        stInsURL.executeUpdate();
+
+                    } // for
+
+                    stInsURL.close();
+                    stInsEntity.close();
+                } else
+                    lDescURLEntityid = -1;
             } // if getDescriptionURLEntities!=null
 
             // schreibe User-Objekt
@@ -427,6 +433,58 @@ public class PGDBConnection {
                 stInsUser.close();
             }
 
+            // schreibe Status URL Entities
+            if (twStatus.getURLEntities() != null) {
+                URLEntity[] arrURL = null;
+                long lURLid = -1;
+                arrURL = twStatus.getURLEntities();
+
+                // gibt es überhaupt Datensätze?
+                if (arrURL.length > 0) {
+                    stInsURL = db.prepareStatement(strInsURL);
+                    stInsEntity = db.prepareStatement(strInsEntity);
+
+                    // get Entity ID
+                    Statement st = db.createStatement();
+                    ResultSet rs = st
+                            .executeQuery("select nextval('entity_seq')");
+                    rs.next();
+                    lStatusURLEntitiesid = rs.getLong(1);
+                    rs.close();
+                    st.close();
+
+                    // schreibe Entity zuerst
+                    stInsEntity.setLong(1, lStatusURLEntitiesid);
+                    stInsEntity.executeUpdate();
+
+                    for (URLEntity elem : arrURL) {
+                        // hole Sequenznummer für die URL
+                        st = db.createStatement();
+                        rs = st.executeQuery("select nextval('url_seq')");
+                        rs.next();
+                        lURLid = rs.getLong(1);
+                        rs.close();
+                        st.close();
+
+                        // dann schreibe URL
+                        stInsURL.setLong(1, lURLid);
+                        stInsURL.setString(2, elem.getDisplayURL());
+                        stInsURL.setString(3, elem.getExpandedURL());
+                        stInsURL.setInt(4, elem.getStart());
+                        stInsURL.setInt(5, elem.getEnd());
+                        stInsURL.setString(6, elem.getURL());
+                        stInsURL.setString(7, elem.getText());
+                        stInsURL.setLong(8, lStatusURLEntitiesid);
+                        stInsURL.executeUpdate();
+
+                    } // for
+
+                    stInsURL.close();
+                    stInsEntity.close();
+                } else
+                    lStatusURLEntitiesid = -1;
+            } // if getURLEntities!=null
+
             // schreibe Status-objekt
 
             stInsStatus = db.prepareStatement(strInsStatus);
@@ -488,8 +546,15 @@ public class PGDBConnection {
                 stInsStatus.setNull(26, Types.BIGINT);
             }
 
-            // TODO: getExtendedMediaEntities, getHashtagEntities,
-            // getMediaEntities, getSymbolEntities, getURLEntities,
+            // URL Entities
+            if (lStatusURLEntitiesid != -1) {
+                stInsStatus.setLong(27, lStatusURLEntitiesid);
+            } else {
+                stInsStatus.setNull(27, Types.BIGINT);
+            }
+
+            // TODO: getHashtagEntities,
+            // getMediaEntities, getSymbolEntities,
             // getUserMentionEntities
 
             stInsStatus.executeUpdate();

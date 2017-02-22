@@ -7,7 +7,7 @@ CREATE SEQUENCE url_seq; -- eine Sequence, um die URLs eines Tweets mit einer Nu
 CREATE SEQUENCE param_seq; -- eine Sequence für die IDs einer Datensammel-Sitzung.
 CREATE SEQUENCE place_seq; -- eine Sequence für die IDs eines Place.
 CREATE SEQUENCE geoloc_seq; -- eine Sequence für die IDs einer Geolocation.
-CREATE SEQUENCE entity_seq; -- eine Sequence für die IDs einer Geolocation.
+CREATE SEQUENCE entity_seq; -- eine Sequence für die IDs einer Entity.
 
 DROP TABLE IF EXISTS T_Attribut, T_Hashtag, T_Symbol, T_URL, T_User_Mention, T_MediaEntitySize, T_Media, T_Entity, T_Place, T_Status , T_User,T_DataCollParameter, T_Geolocation;
 
@@ -119,6 +119,7 @@ CREATE  TABLE T_Status
     dcparam_id bigint REFERENCES T_DataCollParameter(ID),
     latitude double precision,
     longitude double precision,
+    URLEntities_id bigint REFERENCES T_Entity(ID),
     PRIMARY KEY (ID,recorded_at)
 );
 
