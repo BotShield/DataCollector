@@ -11,6 +11,7 @@ import java.sql.Types;
 import java.util.Calendar;
 
 import twitter4j.GeoLocation;
+import twitter4j.HashtagEntity;
 import twitter4j.Place;
 import twitter4j.Status;
 import twitter4j.URLEntity;
@@ -85,10 +86,10 @@ public class PGDBConnection {
              * db.createStatement(); ResultSet rs =
              * st.executeQuery("select nextval('param_seq')"); rs.next(); long
              * lPARAMid = rs.getLong(1); rs.close(); st.close();
-             *
+             * 
              * stInsDCPARAM.setLong(1, lPARAMid); stInsDCPARAM.setString(2,
              * strTopics);
-             *
+             * 
              * stInsDCPARAM.executeUpdate(); db.commit(); stInsDCPARAM.close();
              */
             // TODO: associate Status with param ID
@@ -120,8 +121,8 @@ public class PGDBConnection {
                 + "InReplyToScreenName,InReplyToStatusId,"
                 + "InReplyToUserId,quoted_status_id,RetweetCount,retweeted_status_id,status_source,isFavorited,"
                 + "isPossiblySensitive,isRetweet,isRetweeted,isRetweetedByMe,isTruncated,recorded_at,"
-                + "status_user_id,latitude,longitude,status_place_id,URLEntities_id) "
-                + "values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+                + "status_user_id,latitude,longitude,status_place_id,URLEntities_id,HashtagEntities_id) "
+                + "values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
         PreparedStatement stInsUser = null;
         String strInsUser = "insert into T_User(ID,recorded_at,"
@@ -143,12 +144,15 @@ public class PGDBConnection {
         PreparedStatement stInsEntity = null;
         String strInsEntity = "insert into T_Entity(ID) values (?)";
 
+        PreparedStatement stInsHashtag = null;
+        String strInsHashtag = "insert into T_Hashtag(ID,indices_start,indices_end,httext,entity_id) values (?,?,?,?,?)";
+
         /*
          * Code aus
          * twitter4j/twitter4j-core/src/internal-json/java/twitter4j/JSONImplFactory
          * .java, um zu verstehen, wie die das zweidimensionale
          * GeoLocation-Array der BoundingBox in Place aufgebaut ist
-         *
+         * 
          * static GeoLocation[][] coordinatesAsGeoLocationArray(JSONArray
          * coordinates) throws TwitterException { try { GeoLocation[][]
          * boundingBox = new GeoLocation[coordinates.length()][]; for (int i =
@@ -172,6 +176,7 @@ public class PGDBConnection {
         long lPlaceid = -1;
         long lGeoLocid = -1;
         long lStatusURLEntitiesid = -1;
+        long lStatusHashtagEntitiesid = -1;
 
         try {
 
@@ -485,6 +490,55 @@ public class PGDBConnection {
                     lStatusURLEntitiesid = -1;
             } // if getURLEntities!=null
 
+            // schreibe Status Hashtag Entities
+            if (twStatus.getHashtagEntities() != null) {
+                HashtagEntity[] arrHT = null;
+                long lHTid = -1;
+                arrHT = twStatus.getHashtagEntities();
+
+                // gibt es überhaupt Datensätze?
+                if (arrHT.length > 0) {
+                    stInsHashtag = db.prepareStatement(strInsHashtag);
+                    stInsEntity = db.prepareStatement(strInsEntity);
+
+                    // get Entity ID
+                    Statement st = db.createStatement();
+                    ResultSet rs = st
+                            .executeQuery("select nextval('entity_seq')");
+                    rs.next();
+                    lStatusHashtagEntitiesid = rs.getLong(1);
+                    rs.close();
+                    st.close();
+
+                    // schreibe Entity zuerst
+                    stInsEntity.setLong(1, lStatusHashtagEntitiesid);
+                    stInsEntity.executeUpdate();
+
+                    for (HashtagEntity elem : arrHT) {
+                        // hole Sequenznummer für die URL
+                        st = db.createStatement();
+                        rs = st.executeQuery("select nextval('hashtag_seq')");
+                        rs.next();
+                        lHTid = rs.getLong(1);
+                        rs.close();
+                        st.close();
+
+                        // dann schreibe URL
+                        stInsHashtag.setLong(1, lHTid);
+                        stInsHashtag.setInt(2, elem.getStart());
+                        stInsHashtag.setInt(3, elem.getEnd());
+                        stInsHashtag.setString(4, elem.getText());
+                        stInsHashtag.setLong(5, lStatusHashtagEntitiesid);
+                        stInsHashtag.executeUpdate();
+
+                    } // for
+
+                    stInsHashtag.close();
+                    stInsEntity.close();
+                } else
+                    lStatusHashtagEntitiesid = -1;
+            } // if getHashtagEntities!=null
+
             // schreibe Status-objekt
 
             stInsStatus = db.prepareStatement(strInsStatus);
@@ -553,8 +607,14 @@ public class PGDBConnection {
                 stInsStatus.setNull(27, Types.BIGINT);
             }
 
-            // TODO: getHashtagEntities,
-            // getMediaEntities, getSymbolEntities,
+            // Hashtag Entities
+            if (lStatusHashtagEntitiesid != -1) {
+                stInsStatus.setLong(28, lStatusHashtagEntitiesid);
+            } else {
+                stInsStatus.setNull(28, Types.BIGINT);
+            }
+
+            // TODO: getMediaEntities, getSymbolEntities,
             // getUserMentionEntities
 
             stInsStatus.executeUpdate();
