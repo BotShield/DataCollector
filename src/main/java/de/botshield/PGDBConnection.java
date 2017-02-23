@@ -64,6 +64,11 @@ public class PGDBConnection {
         }
     }// establishConnection
 
+    /**
+     * Prepare the statements that are used in the method "insertStatus".
+     *
+     * @throws SQLException
+     */
     public void prepareStatements() throws SQLException {
         String strInsStatus = "insert into T_Status(ID,status_Text,created_at, "
                 + "favourites_count,username,screen_name,lang,withheld_in_countries,"
@@ -269,7 +274,6 @@ public class PGDBConnection {
             } else {
                 stInsStatus.setNull(8, Types.VARCHAR);
             }
-            ;
             stInsStatus.setString(9, twStatus.getInReplyToScreenName());
             stInsStatus.setLong(10, twStatus.getInReplyToStatusId());
             stInsStatus.setLong(11, twStatus.getInReplyToUserId());
