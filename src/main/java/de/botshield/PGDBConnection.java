@@ -581,63 +581,56 @@ public class PGDBConnection {
         // Durchlaufe das doppelte Array GeoLocation[0][j] und schreibe
         // die Einzelkoordinaten in die DB
         // Annahme: es gibt nur ein einziges Polygon als Bounding Box
-        GeoLocation[][] arrGeo = null;
-        arrGeo = twPlace.getBoundingBoxCoordinates();
-
+        GeoLocation[][] arrGeo = twPlace.getBoundingBoxCoordinates();
         if (arrGeo != null) {
-            GeoLocation[] arrbboxloc = arrGeo[0];
-            Statement st1 = db.createStatement();
-
-            // Durchlaufe alle Ecken des Polygons
-            for (GeoLocation element : arrbboxloc) {
-                // hole id aus Sequence geoloc_seq
-                ResultSet rs1 = st1.executeQuery("select nextval('geoloc_seq')");
-                rs1.next();
-                lGeoLocid = rs1.getLong(1);
-                rs1.close();
-
-                // schreibe Attribute
-                // ID,latitude, longitude, bboxcoord_place_id,
-                // geocoord_place_id
-                stInsGeoLoc.setLong(1, lGeoLocid);
-                stInsGeoLoc.setDouble(2, element.getLatitude());
-                stInsGeoLoc.setDouble(3, element.getLongitude());
-                stInsGeoLoc.setLong(4, lPlaceid);
-                stInsGeoLoc.setNull(5, Types.BIGINT);
-                stInsGeoLoc.executeUpdate();
-            } // for
-            st1.close();
-        } // if
+            insertCoordinatesIntoDb(arrGeo, lPlaceid, true);
+        }
 
         // schreibe Geometry aus Place
-        arrGeo = null;
         arrGeo = twPlace.getGeometryCoordinates();
-
         if (arrGeo != null) {
-            GeoLocation[] arrbboxloc = arrGeo[0];
-            Statement st1 = db.createStatement();
+            insertCoordinatesIntoDb(arrGeo, lPlaceid, false);
+        }
 
-            // Durchlaufe alle Ecken des Polygons
-            for (GeoLocation element : arrbboxloc) {
-                // hole id aus Sequence geoloc_seq
-                ResultSet rs1 = st1.executeQuery("select nextval('geoloc_seq')");
-                rs1.next();
-                lGeoLocid = rs1.getLong(1);
-                rs1.close();
+        return lPlaceid;
+    }
 
-                // schreibe Attribute
-                // ID,latitude, longitude, bboxcoord_place_id,
-                // geocoord_place_id
-                stInsGeoLoc.setLong(1, lGeoLocid);
-                stInsGeoLoc.setDouble(2, element.getLatitude());
-                stInsGeoLoc.setDouble(3, element.getLongitude());
+    /**
+     * @param lPlaceid
+     * @param arrGeo
+     * @throws SQLException
+     */
+    private void insertCoordinatesIntoDb(GeoLocation[][] arrGeo, long lPlaceid, boolean isBoundingBox)
+            throws SQLException {
+        long lGeoLocid;
+        GeoLocation[] arrbboxloc = arrGeo[0];
+        Statement st1 = db.createStatement();
+
+        // Durchlaufe alle Ecken des Polygons
+        for (GeoLocation element : arrbboxloc) {
+            // hole id aus Sequence geoloc_seq
+            ResultSet rs1 = st1.executeQuery("select nextval('geoloc_seq')");
+            rs1.next();
+            lGeoLocid = rs1.getLong(1);
+            rs1.close();
+
+            // schreibe Attribute
+            // ID,latitude, longitude, bboxcoord_place_id,
+            // geocoord_place_id
+            stInsGeoLoc.setLong(1, lGeoLocid);
+            stInsGeoLoc.setDouble(2, element.getLatitude());
+            stInsGeoLoc.setDouble(3, element.getLongitude());
+            if (isBoundingBox) {
+                stInsGeoLoc.setLong(4, lPlaceid);
+                stInsGeoLoc.setNull(5, Types.BIGINT);
+            } else {
                 stInsGeoLoc.setNull(4, Types.BIGINT);
                 stInsGeoLoc.setLong(5, lPlaceid);
-                stInsGeoLoc.executeUpdate();
-            } // for
-            st1.close();
-        } // if arrgeo != null
-        return lPlaceid;
+            }
+
+            stInsGeoLoc.executeUpdate();
+        }
+        st1.close();
     }
 
     public int closeConnection() {
