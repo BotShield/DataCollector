@@ -207,8 +207,7 @@ public class PGDBConnection {
 
                 // User Description URL Entities
                 if (twStatus.getUser().getDescriptionURLEntities() != null) {
-                    lDescURLEntityid = insertUserDescriptionUrlEntitiesIntoDb(
-                            twStatus.getUser().getDescriptionURLEntities());
+                    lDescURLEntityid = insertUrlEntitiesIntoDb(twStatus.getUser().getDescriptionURLEntities());
                 }
 
                 // schreibe User-Objekt
@@ -404,11 +403,9 @@ public class PGDBConnection {
      * @param twStatus
      * @return
      * @throws SQLException
-     *
-     *             TODO: duplizierte Methode?
      */
     private long insertUrlEntitiesIntoDb(URLEntity[] arrURL) throws SQLException {
-        long lStatusURLEntitiesid;
+        long lURLEntitiesId;
         long lURLid = -1;
 
         // gibt es ueberhaupt Datensaetze?
@@ -418,12 +415,12 @@ public class PGDBConnection {
             Statement st = db.createStatement();
             ResultSet rs = st.executeQuery("select nextval('entity_seq')");
             rs.next();
-            lStatusURLEntitiesid = rs.getLong(1);
+            lURLEntitiesId = rs.getLong(1);
             rs.close();
             st.close();
 
             // schreibe Entity zuerst
-            stInsEntity.setLong(1, lStatusURLEntitiesid);
+            stInsEntity.setLong(1, lURLEntitiesId);
             stInsEntity.executeUpdate();
 
             for (URLEntity elem : arrURL) {
@@ -443,15 +440,15 @@ public class PGDBConnection {
                 stInsURL.setInt(5, elem.getEnd());
                 stInsURL.setString(6, elem.getURL());
                 stInsURL.setString(7, elem.getText());
-                stInsURL.setLong(8, lStatusURLEntitiesid);
+                stInsURL.setLong(8, lURLEntitiesId);
 
                 stInsURL.executeUpdate();
             }
 
         } else {
-            lStatusURLEntitiesid = -1;
+            lURLEntitiesId = -1;
         }
-        return lStatusURLEntitiesid;
+        return lURLEntitiesId;
     }
 
     /**
@@ -507,57 +504,6 @@ public class PGDBConnection {
             stInsUser.setNull(29, Types.BIGINT);
         }
         stInsUser.executeUpdate();
-    }
-
-    /**
-     * @param twStatus
-     * @return
-     * @throws SQLException
-     */
-    private long insertUserDescriptionUrlEntitiesIntoDb(URLEntity[] arrURL) throws SQLException {
-        long lDescURLEntityid;
-        long lURLid = -1;
-
-        // gibt es ueberhaupt Datensaetze?
-        if (arrURL.length > 0) {
-            // get Entity ID
-            Statement st = db.createStatement();
-            ResultSet rs = st.executeQuery("select nextval('entity_seq')");
-            rs.next();
-            lDescURLEntityid = rs.getLong(1);
-            rs.close();
-            st.close();
-
-            // schreibe Entity zuerst
-            stInsEntity.setLong(1, lDescURLEntityid);
-            stInsEntity.executeUpdate();
-
-            for (URLEntity elem : arrURL) {
-                // hole Sequenznummer fuer die URL
-                st = db.createStatement();
-                rs = st.executeQuery("select nextval('url_seq')");
-                rs.next();
-                lURLid = rs.getLong(1);
-                rs.close();
-                st.close();
-
-                // dann schreibe URL
-                stInsURL.setLong(1, lURLid);
-                stInsURL.setString(2, elem.getDisplayURL());
-                stInsURL.setString(3, elem.getExpandedURL());
-                stInsURL.setInt(4, elem.getStart());
-                stInsURL.setInt(5, elem.getEnd());
-                stInsURL.setString(6, elem.getURL());
-                stInsURL.setString(7, elem.getText());
-                stInsURL.setLong(8, lDescURLEntityid);
-                stInsURL.executeUpdate();
-
-            }
-
-        } else {
-            lDescURLEntityid = -1;
-        }
-        return lDescURLEntityid;
     }
 
     /**
