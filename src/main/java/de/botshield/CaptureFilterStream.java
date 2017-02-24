@@ -23,7 +23,6 @@ import twitter4j.StallWarning;
 import twitter4j.Status;
 import twitter4j.StatusDeletionNotice;
 import twitter4j.StatusListener;
-import twitter4j.TwitterException;
 import twitter4j.TwitterStream;
 import twitter4j.TwitterStreamFactory;
 
@@ -98,7 +97,7 @@ public final class CaptureFilterStream {
         return result;
     }
 
-    public void execute(long[] followArray, String[] trackArray) throws TwitterException {
+    public void execute(long[] followArray, String[] trackArray) {
         TwitterStream twitterStream = new TwitterStreamFactory().getInstance();
         twitterStream.addListener(listener);
 

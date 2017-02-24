@@ -5,8 +5,6 @@ import java.io.InputStream;
 import java.sql.SQLException;
 import java.util.Properties;
 
-import twitter4j.TwitterException;
-
 public class Runner {
 
     private final static String PROPERTY_FILE = "dataCollector.properties";
@@ -15,7 +13,7 @@ public class Runner {
     private final static String PROPERTY_SEPARATOR = ",";
     private final static String PROPERTY_DATABASEINTEGRATION = "WriteToDatabase";
 
-    public static void main(String[] args) throws TwitterException, SQLException {
+    public static void main(String[] args) throws SQLException {
         Properties props = new Properties();
         CaptureFilterStream objCapture = new CaptureFilterStream();
 
