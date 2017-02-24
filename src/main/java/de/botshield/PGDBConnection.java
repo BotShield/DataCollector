@@ -69,7 +69,7 @@ public class PGDBConnection {
             e.printStackTrace(System.err);
             return false;
         }
-    }// establishConnection
+    }
 
     /**
      * Prepare the statements that are used in the method "insertStatus".
@@ -186,408 +186,51 @@ public class PGDBConnection {
         long lURLEntityid = -1;
         long lDescURLEntityid = -1; // User Description URL Entitites
         long lPlaceid = -1;
-        long lGeoLocid = -1;
         long lStatusURLEntitiesid = -1;
         long lStatusHashtagEntitiesid = -1;
 
         try {
-
             // Schreibe Place Objekt
             if (twStatus.getPlace() != null) {
-
-                Place twPlace = twStatus.getPlace();
-
-                // hole Sequenznummer fuer den Place
-                Statement st = db.createStatement();
-                // TODO: kann man das nicht auch direkt in das Prepared
-                // statement eingeben?
-                ResultSet rs = st.executeQuery("select nextval('place_seq')");
-                rs.next();
-                lPlaceid = rs.getLong(1);
-                rs.close();
-                st.close();
-                // setze Parameter
-                stInsPlace.setLong(1, lPlaceid);
-                stInsPlace.setString(2, twPlace.getName());
-                stInsPlace.setString(3, twPlace.getFullName());
-                stInsPlace.setString(4, twPlace.getURL());
-                stInsPlace.setString(5, twPlace.getBoundingBoxType());
-                stInsPlace.setString(6, twPlace.getGeometryType());
-                stInsPlace.setString(7, twPlace.getCountry());
-                stInsPlace.setString(8, twPlace.getCountryCode());
-                stInsPlace.setString(9, twPlace.getPlaceType());
-                stInsPlace.setString(10, twPlace.getStreetAddress());
-                // TODO: rekursive Aufloesung verschachtelter Places
-                // nicht wichtig, da Place sowieso nicht oft vorkommt
-                stInsPlace.setNull(11, Types.BIGINT);
-
-                stInsPlace.executeUpdate();
-
-                // schreibe BoundingBox aus Place
-                // Durchlaufe das doppelte Array GeoLocation[0][j] und schreibe
-                // die Einzelkoordinaten in die DB
-                // Annahme: es gibt nur ein einziges Polygon als Bounding Box
-                GeoLocation[][] arrGeo = null;
-                arrGeo = twPlace.getBoundingBoxCoordinates();
-
-                if (arrGeo != null) {
-                    GeoLocation[] arrbboxloc = arrGeo[0];
-                    Statement st1 = db.createStatement();
-
-                    // Durchlaufe alle Ecken des Polygons
-                    for (GeoLocation element : arrbboxloc) {
-                        // hole id aus Sequence geoloc_seq
-                        ResultSet rs1 = st1.executeQuery("select nextval('geoloc_seq')");
-                        rs1.next();
-                        lGeoLocid = rs1.getLong(1);
-                        rs1.close();
-
-                        // schreibe Attribute
-                        // ID,latitude, longitude, bboxcoord_place_id,
-                        // geocoord_place_id
-                        stInsGeoLoc.setLong(1, lGeoLocid);
-                        stInsGeoLoc.setDouble(2, element.getLatitude());
-                        stInsGeoLoc.setDouble(3, element.getLongitude());
-                        stInsGeoLoc.setLong(4, lPlaceid);
-                        stInsGeoLoc.setNull(5, Types.BIGINT);
-                        stInsGeoLoc.executeUpdate();
-                    } // for
-                    st1.close();
-                } // if
-
-                // schreibe Geometry aus Place
-                arrGeo = null;
-                arrGeo = twPlace.getGeometryCoordinates();
-
-                if (arrGeo != null) {
-                    GeoLocation[] arrbboxloc = arrGeo[0];
-                    Statement st1 = db.createStatement();
-
-                    // Durchlaufe alle Ecken des Polygons
-                    for (GeoLocation element : arrbboxloc) {
-                        // hole id aus Sequence geoloc_seq
-                        ResultSet rs1 = st1.executeQuery("select nextval('geoloc_seq')");
-                        rs1.next();
-                        lGeoLocid = rs1.getLong(1);
-                        rs1.close();
-
-                        // schreibe Attribute
-                        // ID,latitude, longitude, bboxcoord_place_id,
-                        // geocoord_place_id
-                        stInsGeoLoc.setLong(1, lGeoLocid);
-                        stInsGeoLoc.setDouble(2, element.getLatitude());
-                        stInsGeoLoc.setDouble(3, element.getLongitude());
-                        stInsGeoLoc.setNull(4, Types.BIGINT);
-                        stInsGeoLoc.setLong(5, lPlaceid);
-                        stInsGeoLoc.executeUpdate();
-                    } // for
-                    st1.close();
-                } // if arrgeo != null
-
-            } // Place != null
+                lPlaceid = insertPlaceIntoDb(twStatus.getPlace());
+            }
 
             // schreibe URL-Objekt
             // User's URL
             // leider kann es das URLEntity-Objekt geben, ohne dass dessen
             // Felder gefuellt sind.
-
-            if (twStatus.getUser() != null && twStatus.getUser().getURLEntity() != null
-                    && !twStatus.getUser().getURLEntity().getURL().isEmpty()) {
-                URLEntity twURL = null;
-                long lURLid = -1;
-                twURL = twStatus.getUser().getURLEntity();
-
-                // hole Sequenznummer fuer die URL
-                Statement st = db.createStatement();
-                ResultSet rs = st.executeQuery("select nextval('url_seq'),nextval('entity_seq')");
-                rs.next();
-                lURLid = rs.getLong(1);
-                lURLEntityid = rs.getLong(2);
-                rs.close();
-                st.close();
-
-                // schreibe Entity zuerst
-                stInsEntity.setLong(1, lURLEntityid);
-                stInsEntity.executeUpdate();
-
-                // dann schreibe URL
-                stInsURL.setLong(1, lURLid);
-                stInsURL.setString(2, twURL.getDisplayURL());
-                stInsURL.setString(3, twURL.getExpandedURL());
-                stInsURL.setInt(4, twURL.getStart());
-                stInsURL.setInt(5, twURL.getEnd());
-                stInsURL.setString(6, twURL.getURL());
-                stInsURL.setString(7, twURL.getText());
-                stInsURL.setLong(8, lURLEntityid);
-
-                stInsURL.executeUpdate();
-            }
-
-            // User Description URL Entities
-            if (twStatus.getUser().getDescriptionURLEntities() != null) {
-                URLEntity[] arrURL = null;
-                long lURLid = -1;
-                arrURL = twStatus.getUser().getDescriptionURLEntities();
-
-                // gibt es Ã¼berhaupt DatensÃ¤tze?
-                if (arrURL.length > 0) {
-                    // get Entity ID
-                    Statement st = db.createStatement();
-                    ResultSet rs = st.executeQuery("select nextval('entity_seq')");
-                    rs.next();
-                    lDescURLEntityid = rs.getLong(1);
-                    rs.close();
-                    st.close();
-
-                    // schreibe Entity zuerst
-                    stInsEntity.setLong(1, lDescURLEntityid);
-                    stInsEntity.executeUpdate();
-
-                    for (URLEntity elem : arrURL) {
-                        // hole Sequenznummer fÃ¼r die URL
-                        st = db.createStatement();
-                        rs = st.executeQuery("select nextval('url_seq')");
-                        rs.next();
-                        lURLid = rs.getLong(1);
-                        rs.close();
-                        st.close();
-
-                        // dann schreibe URL
-                        stInsURL.setLong(1, lURLid);
-                        stInsURL.setString(2, elem.getDisplayURL());
-                        stInsURL.setString(3, elem.getExpandedURL());
-                        stInsURL.setInt(4, elem.getStart());
-                        stInsURL.setInt(5, elem.getEnd());
-                        stInsURL.setString(6, elem.getURL());
-                        stInsURL.setString(7, elem.getText());
-                        stInsURL.setLong(8, lDescURLEntityid);
-                        stInsURL.executeUpdate();
-
-                    } // for
-
-                } else {
-                    lDescURLEntityid = -1;
-                }
-            } // if getDescriptionURLEntities!=null
-
-            // schreibe User-Objekt
-            User twUser = null;
             if (twStatus.getUser() != null) {
-                twUser = twStatus.getUser();
-
-                stInsUser.setLong(1, twUser.getId());
-                stInsUser.setTimestamp(2, tsrecorded_at);
-                stInsUser.setString(3, twUser.getName());
-                stInsUser.setString(4, twUser.getScreenName());
-                stInsUser.setTimestamp(5, new Timestamp(twUser.getCreatedAt().getTime()));
-                stInsUser.setString(6, twUser.getDescription());
-                stInsUser.setInt(7, (twUser.isGeoEnabled() ? 1 : 0));
-                stInsUser.setString(8, twUser.getLang());
-                stInsUser.setInt(9, twUser.getFollowersCount());
-                stInsUser.setInt(10, twUser.getFavouritesCount());
-                stInsUser.setInt(11, twUser.getFriendsCount());
-                stInsUser.setInt(12, twUser.getListedCount());
-                stInsUser.setString(13, twUser.getLocation());
-                stInsUser.setInt(14, twUser.getStatusesCount());
-                stInsUser.setString(15, twUser.getTimeZone());
-                stInsUser.setString(16, twUser.getURL());
-
-                stInsUser.setInt(17, twUser.getUtcOffset());
-
-                if (twUser.getWithheldInCountries() != null) {
-                    stInsUser.setString(18, twUser.getWithheldInCountries().toString());
-                } else {
-                    stInsUser.setNull(18, Types.VARCHAR);
+                if (twStatus.getUser().getURLEntity() != null
+                        && !twStatus.getUser().getURLEntity().getURL().isEmpty()) {
+                    lURLEntityid = insertUserUrlEntityIntoDb(twStatus.getUser().getURLEntity());
                 }
-                stInsUser.setInt(19, (twUser.isContributorsEnabled() ? 1 : 0));
-                stInsUser.setInt(20, (twUser.isDefaultProfile() ? 1 : 0));
-                stInsUser.setInt(21, (twUser.isDefaultProfileImage() ? 1 : 0));
-                stInsUser.setInt(22, (twUser.isFollowRequestSent() ? 1 : 0));
-                stInsUser.setInt(23, (twUser.isProfileBackgroundTiled() ? 1 : 0));
-                stInsUser.setInt(24, (twUser.isProfileUseBackgroundImage() ? 1 : 0));
-                stInsUser.setInt(25, (twUser.isProtected() ? 1 : 0));
-                stInsUser.setInt(26, (twUser.isTranslator() ? 1 : 0));
-                stInsUser.setInt(27, (twUser.isVerified() ? 1 : 0));
-                if (lURLEntityid != -1) {
-                    stInsUser.setLong(28, lURLEntityid);
-                } else {
-                    stInsUser.setNull(28, Types.BIGINT);
+
+                // User Description URL Entities
+                if (twStatus.getUser().getDescriptionURLEntities() != null) {
+                    lDescURLEntityid = insertUserDescriptionUrlEntitiesIntoDb(
+                            twStatus.getUser().getDescriptionURLEntities());
                 }
-                if (lDescURLEntityid != -1) {
-                    stInsUser.setLong(29, lDescURLEntityid);
-                } else {
-                    stInsUser.setNull(29, Types.BIGINT);
-                }
-                stInsUser.executeUpdate();
+
+                // schreibe User-Objekt
+                insertUserIntoDb(twStatus.getUser(), tsrecorded_at, lURLEntityid, lDescURLEntityid);
 
             }
             // schreibe Status URL Entities
             if (twStatus.getURLEntities() != null) {
-                URLEntity[] arrURL = null;
-                long lURLid = -1;
-                arrURL = twStatus.getURLEntities();
-
-                // gibt es überhaupt Datensätze?
-                if (arrURL.length > 0) {
-
-                    // get Entity ID
-                    Statement st = db.createStatement();
-                    ResultSet rs = st.executeQuery("select nextval('entity_seq')");
-                    rs.next();
-                    lStatusURLEntitiesid = rs.getLong(1);
-                    rs.close();
-                    st.close();
-
-                    // schreibe Entity zuerst
-                    stInsEntity.setLong(1, lStatusURLEntitiesid);
-                    stInsEntity.executeUpdate();
-
-                    for (URLEntity elem : arrURL) {
-                        // hole Sequenznummer für die URL
-                        st = db.createStatement();
-                        rs = st.executeQuery("select nextval('url_seq')");
-                        rs.next();
-                        lURLid = rs.getLong(1);
-                        rs.close();
-                        st.close();
-
-                        // dann schreibe URL
-                        stInsURL.setLong(1, lURLid);
-                        stInsURL.setString(2, elem.getDisplayURL());
-                        stInsURL.setString(3, elem.getExpandedURL());
-                        stInsURL.setInt(4, elem.getStart());
-                        stInsURL.setInt(5, elem.getEnd());
-                        stInsURL.setString(6, elem.getURL());
-                        stInsURL.setString(7, elem.getText());
-                        stInsURL.setLong(8, lStatusURLEntitiesid);
-                        stInsURL.executeUpdate();
-
-                    } // for
-
-                } else {
-                    lStatusURLEntitiesid = -1;
-                }
-            } // if getURLEntities!=null
+                lStatusURLEntitiesid = insertUrlEntitiesIntoDb(twStatus.getURLEntities());
+            }
 
             // schreibe Status Hashtag Entities
             if (twStatus.getHashtagEntities() != null) {
-                HashtagEntity[] arrHT = null;
-                long lHTid = -1;
-                arrHT = twStatus.getHashtagEntities();
-
-                // gibt es überhaupt Datensätze?
-                if (arrHT.length > 0) {
-
-                    // get Entity ID
-                    Statement st = db.createStatement();
-                    ResultSet rs = st.executeQuery("select nextval('entity_seq')");
-                    rs.next();
-                    lStatusHashtagEntitiesid = rs.getLong(1);
-                    rs.close();
-                    st.close();
-
-                    // schreibe Entity zuerst
-                    stInsEntity.setLong(1, lStatusHashtagEntitiesid);
-                    stInsEntity.executeUpdate();
-
-                    for (HashtagEntity elem : arrHT) {
-                        // hole Sequenznummer für die URL
-                        st = db.createStatement();
-                        rs = st.executeQuery("select nextval('hashtag_seq')");
-                        rs.next();
-                        lHTid = rs.getLong(1);
-                        rs.close();
-                        st.close();
-
-                        // dann schreibe URL
-                        stInsHashtag.setLong(1, lHTid);
-                        stInsHashtag.setInt(2, elem.getStart());
-                        stInsHashtag.setInt(3, elem.getEnd());
-                        stInsHashtag.setString(4, elem.getText());
-                        stInsHashtag.setLong(5, lStatusHashtagEntitiesid);
-                        stInsHashtag.executeUpdate();
-
-                    } // for
-
-                } else {
-                    lStatusHashtagEntitiesid = -1;
-                }
-            } // if getHashtagEntities!=null
-              // schreibe Status-objekt
-            stInsStatus.setLong(1, twStatus.getId());
-            stInsStatus.setString(2, twStatus.getText());
-            stInsStatus.setTimestamp(3, new Timestamp(twStatus.getCreatedAt().getTime()));
-            stInsStatus.setInt(4, twStatus.getFavoriteCount());
-            stInsStatus.setString(5, twStatus.getUser().getName());
-            stInsStatus.setString(6, twStatus.getUser().getScreenName());
-            stInsStatus.setString(7, twStatus.getLang());
-
-            if (twStatus.getWithheldInCountries() != null) {
-                stInsStatus.setString(8, twStatus.getWithheldInCountries().toString());
-            } else {
-                stInsStatus.setNull(8, Types.VARCHAR);
-            }
-            stInsStatus.setString(9, twStatus.getInReplyToScreenName());
-            stInsStatus.setLong(10, twStatus.getInReplyToStatusId());
-            stInsStatus.setLong(11, twStatus.getInReplyToUserId());
-            stInsStatus.setLong(12, twStatus.getQuotedStatusId());
-            stInsStatus.setInt(13, twStatus.getRetweetCount());
-            if (twStatus.getRetweetedStatus() != null) {
-                stInsStatus.setLong(14, twStatus.getRetweetedStatus().getId());
-            } else {
-                stInsStatus.setNull(14, Types.BIGINT);
-            }
-            stInsStatus.setString(15, twStatus.getSource());
-            stInsStatus.setInt(16, (twStatus.isFavorited() ? 1 : 0));
-            stInsStatus.setInt(17, (twStatus.isPossiblySensitive() ? 1 : 0));
-            stInsStatus.setInt(18, (twStatus.isRetweet() ? 1 : 0));
-            stInsStatus.setInt(19, (twStatus.isRetweeted() ? 1 : 0));
-            stInsStatus.setInt(20, (twStatus.isRetweetedByMe() ? 1 : 0));
-            stInsStatus.setInt(21, (twStatus.isTruncated() ? 1 : 0));
-            stInsStatus.setTimestamp(22, tsrecorded_at);
-
-            if (twStatus.getUser() != null) {
-                stInsStatus.setLong(23, twStatus.getUser().getId());
-            } else {
-                stInsStatus.setNull(23, Types.BIGINT);
+                lStatusHashtagEntitiesid = insertHashtagEntitiesIntoDb(twStatus.getHashtagEntities());
             }
 
-            // Geolocation des Tweets
-            if (twStatus.getGeoLocation() != null) {
-                stInsStatus.setDouble(24, twStatus.getGeoLocation().getLatitude());
-                stInsStatus.setDouble(25, twStatus.getGeoLocation().getLongitude());
-            } else {
-                stInsStatus.setNull(24, Types.DOUBLE);
-                stInsStatus.setNull(25, Types.DOUBLE);
-            }
-            // Place
-            if (lPlaceid != -1) {
-                stInsStatus.setLong(26, lPlaceid);
-            } else {
-                stInsStatus.setNull(26, Types.BIGINT);
-            }
-
-            // URL Entities
-            if (lStatusURLEntitiesid != -1) {
-                stInsStatus.setLong(27, lStatusURLEntitiesid);
-            } else {
-                stInsStatus.setNull(27, Types.BIGINT);
-            }
-
-            // Hashtag Entities
-            if (lStatusHashtagEntitiesid != -1) {
-                stInsStatus.setLong(28, lStatusHashtagEntitiesid);
-            } else {
-                stInsStatus.setNull(28, Types.BIGINT);
-            }
-
-            // TODO: getMediaEntities, getSymbolEntities,
-            // getUserMentionEntities
-
-            stInsStatus.executeUpdate();
+            // schreibe Status-objekt
+            insertStatusIntoDb(twStatus, tsrecorded_at, lPlaceid, lStatusURLEntitiesid, lStatusHashtagEntitiesid);
 
             db.commit();
             return 0;
+
         } catch (SQLException e) {
             e.printStackTrace();
             System.err.println(e.getSQLState());
@@ -624,6 +267,432 @@ public class PGDBConnection {
             return -1;
         } // catch
     }// insertStatus
+
+    /**
+     * @param twStatus
+     * @param tsrecorded_at
+     * @param lPlaceid
+     * @param lStatusURLEntitiesid
+     * @param lStatusHashtagEntitiesid
+     * @throws SQLException
+     */
+    private void insertStatusIntoDb(Status twStatus, Timestamp tsrecorded_at, long lPlaceid, long lStatusURLEntitiesid,
+            long lStatusHashtagEntitiesid) throws SQLException {
+        stInsStatus.setLong(1, twStatus.getId());
+        stInsStatus.setString(2, twStatus.getText());
+        stInsStatus.setTimestamp(3, new Timestamp(twStatus.getCreatedAt().getTime()));
+        stInsStatus.setInt(4, twStatus.getFavoriteCount());
+        stInsStatus.setString(5, twStatus.getUser().getName());
+        stInsStatus.setString(6, twStatus.getUser().getScreenName());
+        stInsStatus.setString(7, twStatus.getLang());
+
+        if (twStatus.getWithheldInCountries() != null) {
+            stInsStatus.setString(8, twStatus.getWithheldInCountries().toString());
+        } else {
+            stInsStatus.setNull(8, Types.VARCHAR);
+        }
+        stInsStatus.setString(9, twStatus.getInReplyToScreenName());
+        stInsStatus.setLong(10, twStatus.getInReplyToStatusId());
+        stInsStatus.setLong(11, twStatus.getInReplyToUserId());
+        stInsStatus.setLong(12, twStatus.getQuotedStatusId());
+        stInsStatus.setInt(13, twStatus.getRetweetCount());
+        if (twStatus.getRetweetedStatus() != null) {
+            stInsStatus.setLong(14, twStatus.getRetweetedStatus().getId());
+        } else {
+            stInsStatus.setNull(14, Types.BIGINT);
+        }
+        stInsStatus.setString(15, twStatus.getSource());
+        stInsStatus.setInt(16, (twStatus.isFavorited() ? 1 : 0));
+        stInsStatus.setInt(17, (twStatus.isPossiblySensitive() ? 1 : 0));
+        stInsStatus.setInt(18, (twStatus.isRetweet() ? 1 : 0));
+        stInsStatus.setInt(19, (twStatus.isRetweeted() ? 1 : 0));
+        stInsStatus.setInt(20, (twStatus.isRetweetedByMe() ? 1 : 0));
+        stInsStatus.setInt(21, (twStatus.isTruncated() ? 1 : 0));
+        stInsStatus.setTimestamp(22, tsrecorded_at);
+
+        if (twStatus.getUser() != null) {
+            stInsStatus.setLong(23, twStatus.getUser().getId());
+        } else {
+            stInsStatus.setNull(23, Types.BIGINT);
+        }
+
+        // Geolocation des Tweets
+        if (twStatus.getGeoLocation() != null) {
+            stInsStatus.setDouble(24, twStatus.getGeoLocation().getLatitude());
+            stInsStatus.setDouble(25, twStatus.getGeoLocation().getLongitude());
+        } else {
+            stInsStatus.setNull(24, Types.DOUBLE);
+            stInsStatus.setNull(25, Types.DOUBLE);
+        }
+        // Place
+        if (lPlaceid != -1) {
+            stInsStatus.setLong(26, lPlaceid);
+        } else {
+            stInsStatus.setNull(26, Types.BIGINT);
+        }
+
+        // URL Entities
+        if (lStatusURLEntitiesid != -1) {
+            stInsStatus.setLong(27, lStatusURLEntitiesid);
+        } else {
+            stInsStatus.setNull(27, Types.BIGINT);
+        }
+
+        // Hashtag Entities
+        if (lStatusHashtagEntitiesid != -1) {
+            stInsStatus.setLong(28, lStatusHashtagEntitiesid);
+        } else {
+            stInsStatus.setNull(28, Types.BIGINT);
+        }
+
+        // TODO: getMediaEntities, getSymbolEntities,
+        // getUserMentionEntities
+
+        stInsStatus.executeUpdate();
+    }
+
+    /**
+     * @param twStatus
+     * @return
+     * @throws SQLException
+     */
+    private long insertHashtagEntitiesIntoDb(HashtagEntity[] arrHT) throws SQLException {
+        long lStatusHashtagEntitiesid;
+        long lHTid = -1;
+
+        // gibt es ueberhaupt Datensaetze?
+        if (arrHT.length > 0) {
+
+            // get Entity ID
+            Statement st = db.createStatement();
+            ResultSet rs = st.executeQuery("select nextval('entity_seq')");
+            rs.next();
+            lStatusHashtagEntitiesid = rs.getLong(1);
+            rs.close();
+            st.close();
+
+            // schreibe Entity zuerst
+            stInsEntity.setLong(1, lStatusHashtagEntitiesid);
+            stInsEntity.executeUpdate();
+
+            for (HashtagEntity elem : arrHT) {
+                // hole Sequenznummer fuer die URL
+                st = db.createStatement();
+                rs = st.executeQuery("select nextval('hashtag_seq')");
+                rs.next();
+                lHTid = rs.getLong(1);
+                rs.close();
+                st.close();
+
+                // dann schreibe URL
+                stInsHashtag.setLong(1, lHTid);
+                stInsHashtag.setInt(2, elem.getStart());
+                stInsHashtag.setInt(3, elem.getEnd());
+                stInsHashtag.setString(4, elem.getText());
+                stInsHashtag.setLong(5, lStatusHashtagEntitiesid);
+                stInsHashtag.executeUpdate();
+
+            }
+
+        } else {
+            lStatusHashtagEntitiesid = -1;
+        }
+        return lStatusHashtagEntitiesid;
+    }
+
+    /**
+     * @param twStatus
+     * @return
+     * @throws SQLException
+     *
+     *             TODO: duplizierte Methode?
+     */
+    private long insertUrlEntitiesIntoDb(URLEntity[] arrURL) throws SQLException {
+        long lStatusURLEntitiesid;
+        long lURLid = -1;
+
+        // gibt es ueberhaupt Datensaetze?
+        if (arrURL.length > 0) {
+
+            // get Entity ID
+            Statement st = db.createStatement();
+            ResultSet rs = st.executeQuery("select nextval('entity_seq')");
+            rs.next();
+            lStatusURLEntitiesid = rs.getLong(1);
+            rs.close();
+            st.close();
+
+            // schreibe Entity zuerst
+            stInsEntity.setLong(1, lStatusURLEntitiesid);
+            stInsEntity.executeUpdate();
+
+            for (URLEntity elem : arrURL) {
+                // hole Sequenznummer fuer die URL
+                st = db.createStatement();
+                rs = st.executeQuery("select nextval('url_seq')");
+                rs.next();
+                lURLid = rs.getLong(1);
+                rs.close();
+                st.close();
+
+                // dann schreibe URL
+                stInsURL.setLong(1, lURLid);
+                stInsURL.setString(2, elem.getDisplayURL());
+                stInsURL.setString(3, elem.getExpandedURL());
+                stInsURL.setInt(4, elem.getStart());
+                stInsURL.setInt(5, elem.getEnd());
+                stInsURL.setString(6, elem.getURL());
+                stInsURL.setString(7, elem.getText());
+                stInsURL.setLong(8, lStatusURLEntitiesid);
+
+                stInsURL.executeUpdate();
+            }
+
+        } else {
+            lStatusURLEntitiesid = -1;
+        }
+        return lStatusURLEntitiesid;
+    }
+
+    /**
+     * @param twStatus
+     * @param tsrecorded_at
+     * @param lURLEntityid
+     * @param lDescURLEntityid
+     * @throws SQLException
+     */
+    private void insertUserIntoDb(User twUser, Timestamp tsrecorded_at, long lURLEntityid, long lDescURLEntityid)
+            throws SQLException {
+        stInsUser.setLong(1, twUser.getId());
+        stInsUser.setTimestamp(2, tsrecorded_at);
+        stInsUser.setString(3, twUser.getName());
+        stInsUser.setString(4, twUser.getScreenName());
+        stInsUser.setTimestamp(5, new Timestamp(twUser.getCreatedAt().getTime()));
+        stInsUser.setString(6, twUser.getDescription());
+        stInsUser.setInt(7, (twUser.isGeoEnabled() ? 1 : 0));
+        stInsUser.setString(8, twUser.getLang());
+        stInsUser.setInt(9, twUser.getFollowersCount());
+        stInsUser.setInt(10, twUser.getFavouritesCount());
+        stInsUser.setInt(11, twUser.getFriendsCount());
+        stInsUser.setInt(12, twUser.getListedCount());
+        stInsUser.setString(13, twUser.getLocation());
+        stInsUser.setInt(14, twUser.getStatusesCount());
+        stInsUser.setString(15, twUser.getTimeZone());
+        stInsUser.setString(16, twUser.getURL());
+
+        stInsUser.setInt(17, twUser.getUtcOffset());
+
+        if (twUser.getWithheldInCountries() != null) {
+            stInsUser.setString(18, twUser.getWithheldInCountries().toString());
+        } else {
+            stInsUser.setNull(18, Types.VARCHAR);
+        }
+        stInsUser.setInt(19, (twUser.isContributorsEnabled() ? 1 : 0));
+        stInsUser.setInt(20, (twUser.isDefaultProfile() ? 1 : 0));
+        stInsUser.setInt(21, (twUser.isDefaultProfileImage() ? 1 : 0));
+        stInsUser.setInt(22, (twUser.isFollowRequestSent() ? 1 : 0));
+        stInsUser.setInt(23, (twUser.isProfileBackgroundTiled() ? 1 : 0));
+        stInsUser.setInt(24, (twUser.isProfileUseBackgroundImage() ? 1 : 0));
+        stInsUser.setInt(25, (twUser.isProtected() ? 1 : 0));
+        stInsUser.setInt(26, (twUser.isTranslator() ? 1 : 0));
+        stInsUser.setInt(27, (twUser.isVerified() ? 1 : 0));
+        if (lURLEntityid != -1) {
+            stInsUser.setLong(28, lURLEntityid);
+        } else {
+            stInsUser.setNull(28, Types.BIGINT);
+        }
+        if (lDescURLEntityid != -1) {
+            stInsUser.setLong(29, lDescURLEntityid);
+        } else {
+            stInsUser.setNull(29, Types.BIGINT);
+        }
+        stInsUser.executeUpdate();
+    }
+
+    /**
+     * @param twStatus
+     * @return
+     * @throws SQLException
+     */
+    private long insertUserDescriptionUrlEntitiesIntoDb(URLEntity[] arrURL) throws SQLException {
+        long lDescURLEntityid;
+        long lURLid = -1;
+
+        // gibt es ueberhaupt Datensaetze?
+        if (arrURL.length > 0) {
+            // get Entity ID
+            Statement st = db.createStatement();
+            ResultSet rs = st.executeQuery("select nextval('entity_seq')");
+            rs.next();
+            lDescURLEntityid = rs.getLong(1);
+            rs.close();
+            st.close();
+
+            // schreibe Entity zuerst
+            stInsEntity.setLong(1, lDescURLEntityid);
+            stInsEntity.executeUpdate();
+
+            for (URLEntity elem : arrURL) {
+                // hole Sequenznummer fuer die URL
+                st = db.createStatement();
+                rs = st.executeQuery("select nextval('url_seq')");
+                rs.next();
+                lURLid = rs.getLong(1);
+                rs.close();
+                st.close();
+
+                // dann schreibe URL
+                stInsURL.setLong(1, lURLid);
+                stInsURL.setString(2, elem.getDisplayURL());
+                stInsURL.setString(3, elem.getExpandedURL());
+                stInsURL.setInt(4, elem.getStart());
+                stInsURL.setInt(5, elem.getEnd());
+                stInsURL.setString(6, elem.getURL());
+                stInsURL.setString(7, elem.getText());
+                stInsURL.setLong(8, lDescURLEntityid);
+                stInsURL.executeUpdate();
+
+            }
+
+        } else {
+            lDescURLEntityid = -1;
+        }
+        return lDescURLEntityid;
+    }
+
+    /**
+     * @param twStatus
+     * @return
+     * @throws SQLException
+     */
+    private long insertUserUrlEntityIntoDb(URLEntity twURL) throws SQLException {
+        long lURLEntityid;
+        long lURLid = -1;
+
+        // hole Sequenznummer fuer die URL
+        Statement st = db.createStatement();
+        ResultSet rs = st.executeQuery("select nextval('url_seq'),nextval('entity_seq')");
+        rs.next();
+        lURLid = rs.getLong(1);
+        lURLEntityid = rs.getLong(2);
+        rs.close();
+        st.close();
+
+        // schreibe Entity zuerst
+        stInsEntity.setLong(1, lURLEntityid);
+        stInsEntity.executeUpdate();
+
+        // dann schreibe URL
+        stInsURL.setLong(1, lURLid);
+        stInsURL.setString(2, twURL.getDisplayURL());
+        stInsURL.setString(3, twURL.getExpandedURL());
+        stInsURL.setInt(4, twURL.getStart());
+        stInsURL.setInt(5, twURL.getEnd());
+        stInsURL.setString(6, twURL.getURL());
+        stInsURL.setString(7, twURL.getText());
+        stInsURL.setLong(8, lURLEntityid);
+
+        stInsURL.executeUpdate();
+        return lURLEntityid;
+    }
+
+    /**
+     * @param twStatus
+     * @return
+     * @throws SQLException
+     */
+    private long insertPlaceIntoDb(Place twPlace) throws SQLException {
+        long lPlaceid;
+        long lGeoLocid;
+
+        // hole Sequenznummer fuer den Place
+        Statement st = db.createStatement();
+        // TODO: kann man das nicht auch direkt in das Prepared
+        // statement eingeben?
+        ResultSet rs = st.executeQuery("select nextval('place_seq')");
+        rs.next();
+        lPlaceid = rs.getLong(1);
+        rs.close();
+        st.close();
+        // setze Parameter
+        stInsPlace.setLong(1, lPlaceid);
+        stInsPlace.setString(2, twPlace.getName());
+        stInsPlace.setString(3, twPlace.getFullName());
+        stInsPlace.setString(4, twPlace.getURL());
+        stInsPlace.setString(5, twPlace.getBoundingBoxType());
+        stInsPlace.setString(6, twPlace.getGeometryType());
+        stInsPlace.setString(7, twPlace.getCountry());
+        stInsPlace.setString(8, twPlace.getCountryCode());
+        stInsPlace.setString(9, twPlace.getPlaceType());
+        stInsPlace.setString(10, twPlace.getStreetAddress());
+        // TODO: rekursive Aufloesung verschachtelter Places
+        // nicht wichtig, da Place sowieso nicht oft vorkommt
+        stInsPlace.setNull(11, Types.BIGINT);
+
+        stInsPlace.executeUpdate();
+
+        // schreibe BoundingBox aus Place
+        // Durchlaufe das doppelte Array GeoLocation[0][j] und schreibe
+        // die Einzelkoordinaten in die DB
+        // Annahme: es gibt nur ein einziges Polygon als Bounding Box
+        GeoLocation[][] arrGeo = null;
+        arrGeo = twPlace.getBoundingBoxCoordinates();
+
+        if (arrGeo != null) {
+            GeoLocation[] arrbboxloc = arrGeo[0];
+            Statement st1 = db.createStatement();
+
+            // Durchlaufe alle Ecken des Polygons
+            for (GeoLocation element : arrbboxloc) {
+                // hole id aus Sequence geoloc_seq
+                ResultSet rs1 = st1.executeQuery("select nextval('geoloc_seq')");
+                rs1.next();
+                lGeoLocid = rs1.getLong(1);
+                rs1.close();
+
+                // schreibe Attribute
+                // ID,latitude, longitude, bboxcoord_place_id,
+                // geocoord_place_id
+                stInsGeoLoc.setLong(1, lGeoLocid);
+                stInsGeoLoc.setDouble(2, element.getLatitude());
+                stInsGeoLoc.setDouble(3, element.getLongitude());
+                stInsGeoLoc.setLong(4, lPlaceid);
+                stInsGeoLoc.setNull(5, Types.BIGINT);
+                stInsGeoLoc.executeUpdate();
+            } // for
+            st1.close();
+        } // if
+
+        // schreibe Geometry aus Place
+        arrGeo = null;
+        arrGeo = twPlace.getGeometryCoordinates();
+
+        if (arrGeo != null) {
+            GeoLocation[] arrbboxloc = arrGeo[0];
+            Statement st1 = db.createStatement();
+
+            // Durchlaufe alle Ecken des Polygons
+            for (GeoLocation element : arrbboxloc) {
+                // hole id aus Sequence geoloc_seq
+                ResultSet rs1 = st1.executeQuery("select nextval('geoloc_seq')");
+                rs1.next();
+                lGeoLocid = rs1.getLong(1);
+                rs1.close();
+
+                // schreibe Attribute
+                // ID,latitude, longitude, bboxcoord_place_id,
+                // geocoord_place_id
+                stInsGeoLoc.setLong(1, lGeoLocid);
+                stInsGeoLoc.setDouble(2, element.getLatitude());
+                stInsGeoLoc.setDouble(3, element.getLongitude());
+                stInsGeoLoc.setNull(4, Types.BIGINT);
+                stInsGeoLoc.setLong(5, lPlaceid);
+                stInsGeoLoc.executeUpdate();
+            } // for
+            st1.close();
+        } // if arrgeo != null
+        return lPlaceid;
+    }
 
     public int closeConnection() {
         try {
