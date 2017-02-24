@@ -98,7 +98,7 @@ public final class CaptureFilterStream {
          * "**************************************************")
          * .setOAuthAccessTokenSecret(
          * "******************************************");
-         * 
+         *
          * TwitterFactory tf = new TwitterFactory(cb.build()); Twitter twitter =
          * tf.getInstance();
          */
