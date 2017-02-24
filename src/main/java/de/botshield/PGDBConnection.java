@@ -581,6 +581,9 @@ public class PGDBConnection {
                 stInsStatus.setNull(28, Types.BIGINT);
             }
 
+            // TODO: getMediaEntities, getSymbolEntities,
+            // getUserMentionEntities
+
             stInsStatus.executeUpdate();
 
             db.commit();
