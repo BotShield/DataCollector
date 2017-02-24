@@ -2,13 +2,15 @@
 -- Passend für eine PostgreSQL 9.6 Datenbank
 -- Status: erledigt (Einschränkugen siehe unten)
 
-DROP SEQUENCE IF EXISTS url_seq,param_seq,place_seq;
+DROP SEQUENCE IF EXISTS url_seq,param_seq,place_seq,geoloc_seq,entity_seq,hashtag_seq CASCADE;
 CREATE SEQUENCE url_seq; -- eine Sequence, um die URLs eines Tweets mit einer Nummer auszustatten.
 CREATE SEQUENCE param_seq; -- eine Sequence für die IDs einer Datensammel-Sitzung.
 CREATE SEQUENCE place_seq; -- eine Sequence für die IDs eines Place.
+CREATE SEQUENCE geoloc_seq; -- eine Sequence für die IDs einer Geolocation.
+CREATE SEQUENCE entity_seq; -- eine Sequence für die IDs einer Entity.
+CREATE SEQUENCE hashtag_seq; -- eine Sequence für die IDs einer Entity.
 
-
-DROP TABLE IF EXISTS T_Attribut, T_Hashtag, T_Symbol, T_URL, T_User_Mention, T_MediaEntitySize, T_Media, T_Entity, T_Place, T_Status , T_User,T_DataCollParameter, T_Geolocation;
+DROP TABLE IF EXISTS T_Attribut, T_Hashtag, T_Symbol, T_URL, T_User_Mention, T_MediaEntitySize, T_Media, T_Entity, T_Place, T_Status , T_User,T_DataCollParameter, T_Geolocation CASCADE;
 
 CREATE TABLE T_DataCollParameter --Data Collector Parameters
 (
@@ -42,7 +44,7 @@ CREATE  TABLE  T_Place
     contained_place_id  bigint REFERENCES T_Place(ID)
 );
 
-
+-- Annahme: es gibt nur ein Polygon pro BoundingBox und Geometry in Place
 CREATE  TABLE T_Geolocation
 (
  ID bigint PRIMARY KEY,
@@ -53,7 +55,10 @@ CREATE  TABLE T_Geolocation
 );
 
 
--- Noch ohne ExtendedMedia
+/* Noch ohne ExtendedMedia
+* Tabelle für die Klasse Entity, deren abgeleitete Klassen dann 
+* ExtendedMediaEntity, HashtagEntity, MediaEntity, SymbolEntity, URLEntity, UserMentionEntity sind
+*/
 CREATE  TABLE T_Entity
 (      
        ID bigint PRIMARY KEY
@@ -84,6 +89,7 @@ Keine Ref. Integrität für quoted und retweeted tweets, da sonst eine rekursive
 Feld scopes fehlt, weil nur für Twitter-Werbung
 Feld WithheldInCountries enthält die String-Verkettung aus der Twitter4J API.
 T_Geolocation wird entfernt und deren zwei Felder werden dem Status zugeschlagen
+TODO: Entitys einbauen
 */
 CREATE  TABLE T_Status
 (
@@ -114,6 +120,8 @@ CREATE  TABLE T_Status
     dcparam_id bigint REFERENCES T_DataCollParameter(ID),
     latitude double precision,
     longitude double precision,
+    URLEntities_id bigint REFERENCES T_Entity(ID),
+    HashtagEntities_id bigint REFERENCES T_Entity(ID),
     PRIMARY KEY (ID,recorded_at)
 );
 
@@ -159,6 +167,7 @@ CREATE  TABLE T_User
     TimeZone varchar(4000),
     user_URL varchar(4000),
     URLEntity_id bigint,
+    DescURLEntity_id bigint,
     UtcOffset integer, 
     WithheldInCountries varchar(4000),
     isContributorsEnabled integer,
@@ -177,7 +186,6 @@ ALTER TABLE T_Status ADD CONSTRAINT fk_uid FOREIGN KEY (status_user_id,recorded_
 CREATE  TABLE T_URL
 (
     ID bigint,
-    recorded_at  TIMESTAMP WITH TIME ZONE,
     display_url   VARCHAR (4000) ,
     expanded_url  VARCHAR (4000) ,
     indices_start integer ,
@@ -185,11 +193,11 @@ CREATE  TABLE T_URL
     url           VARCHAR (4000),
     urltext	  VARCHAR (4000),
     entity_id	  bigint REFERENCES T_Entity(ID),
-    PRIMARY KEY (ID,recorded_at)
+    PRIMARY KEY (ID)
 );
 
-ALTER TABLE T_User ADD FOREIGN KEY (URLEntity_id,recorded_at) REFERENCES T_URL(ID,recorded_at);
-
+ALTER TABLE T_User ADD FOREIGN KEY (URLEntity_id) REFERENCES T_Entity(ID);
+ALTER TABLE T_User ADD FOREIGN KEY (DescURLEntity_id) REFERENCES T_Entity(ID);
 
 CREATE  TABLE T_User_Mention
 (
@@ -248,7 +256,4 @@ CREATE  TABLE ExtendedMedia
     
 
 );*/
-
-
-
 

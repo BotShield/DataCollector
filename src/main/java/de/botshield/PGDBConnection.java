@@ -10,12 +10,16 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.Calendar;
 
+import twitter4j.GeoLocation;
+import twitter4j.HashtagEntity;
 import twitter4j.Place;
 import twitter4j.Status;
 import twitter4j.URLEntity;
 import twitter4j.User;
 
 /**
+ * Klasse zum Schreiben des Twitter Datenmodells in eine relationale Datenbank
+ * (Schema scripts/tabellendefinitionen.sql)
  *
  * @author jstrebel
  *
@@ -28,6 +32,9 @@ public class PGDBConnection {
     private PreparedStatement stInsUser;
     private PreparedStatement stInsURL;
     private PreparedStatement stInsPlace;
+    private PreparedStatement stInsEntity;
+    private PreparedStatement stInsHashtag;
+    private PreparedStatement stInsGeoLoc;
 
     /**
      * Establishes a DB connection to a PostgreSQL DB.
@@ -74,25 +81,54 @@ public class PGDBConnection {
                 + "favourites_count,username,screen_name,lang,withheld_in_countries,"
                 + "InReplyToScreenName,InReplyToStatusId,"
                 + "InReplyToUserId,quoted_status_id,RetweetCount,retweeted_status_id,status_source,isFavorited,"
-                + "isPossiblySensitive,isRetweet,isRetweeted,isRetweetedByMe,isTruncated,recorded_at,status_user_id,latitude,longitude,status_place_id) "
-                + "values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+                + "isPossiblySensitive,isRetweet,isRetweeted,isRetweetedByMe,isTruncated,recorded_at,"
+                + "status_user_id,latitude,longitude,status_place_id,URLEntities_id) "
+                + "values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+
         String strInsUser = "insert into T_User(ID,recorded_at," + "username,screen_name,created_at,description,"
                 + "geo_enabled,lang,followers_count,favourites_count,friends_count, listed_count,loca,"
                 + "statuses_count,TimeZone,user_URL,UtcOffset,WithheldInCountries,isContributorsEnabled,"
                 + "isDefaultProfile,isDefaultProfileImage,isFollowRequestSent,isProfileBackgroundTiled,"
-                + "isProfileUseBackgroundImage,isProtected,isTranslator,isverified,URLEntity_id) "
-                + "values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+                + "isProfileUseBackgroundImage,isProtected,isTranslator,isverified,URLEntity_id,DescURLEntity_id) "
+                + "values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
-        String strInsURL = "insert into T_URL(ID,recorded_at,display_url,expanded_url,"
-                + "indices_start,indices_end,url,urltext,entity_id) values (?,?,?,?,?,?,?,?,?)";
+        String strInsURL = "insert into T_URL(ID,display_url,expanded_url,"
+                + "indices_start,indices_end,url,urltext,entity_id) values (?,?,?,?,?,?,?,?)";
 
         String strInsPlace = "insert into T_Place(ID,pname,pfullname,place_url,bb_type,geo_type,country,country_code,"
                 + "place_type,street_address,contained_place_id) values (?,?,?,?,?,?,?,?,?,?,?)";
+
+        String strInsEntity = "insert into T_Entity(ID) values (?)";
+
+        String strInsHashtag = "insert into T_Hashtag(ID,indices_start,indices_end,httext,entity_id) values (?,?,?,?,?)";
+
+        /*
+         * Code aus twitter4j/twitter4j-core/src/internal-json/java/twitter4j/
+         * JSONImplFactory .java, um zu verstehen, wie die das zweidimensionale
+         * GeoLocation-Array der BoundingBox in Place aufgebaut ist
+         *
+         * static GeoLocation[][] coordinatesAsGeoLocationArray(JSONArray
+         * coordinates) throws TwitterException { try { GeoLocation[][]
+         * boundingBox = new GeoLocation[coordinates.length()][]; for (int i =
+         * 0; i < coordinates.length(); i++) { JSONArray array =
+         * coordinates.getJSONArray(i); boundingBox[i] = new
+         * GeoLocation[array.length()]; for (int j = 0; j < array.length(); j++)
+         * { JSONArray coordinate = array.getJSONArray(j); boundingBox[i][j] =
+         * new GeoLocation(coordinate.getDouble(1), coordinate.getDouble(0)); }
+         * } return boundingBox; } catch (JSONException jsone) { throw new
+         * TwitterException(jsone); } }
+         */
+        String strInsGeoLoc = "insert into T_Geolocation(ID,latitude, longitude, bboxcoord_place_id, geocoord_place_id)"
+                + " values (?,?,?,?,?)";
 
         stInsPlace = db.prepareStatement(strInsPlace);
         stInsURL = db.prepareStatement(strInsURL);
         stInsUser = db.prepareStatement(strInsUser);
         stInsStatus = db.prepareStatement(strInsStatus);
+        stInsEntity = db.prepareStatement(strInsEntity);
+        stInsHashtag = db.prepareStatement(strInsHashtag);
+        stInsGeoLoc = db.prepareStatement(strInsGeoLoc);
+
     }
 
     /**
@@ -121,7 +157,7 @@ public class PGDBConnection {
              *
              * stInsDCPARAM.executeUpdate(); db.commit(); stInsDCPARAM.close();
              */
-            // TODO: aaociate Status with param ID
+            // TODO: associate Status with param ID
             return 0;
         } catch (SQLException e) {
             /*
@@ -136,10 +172,8 @@ public class PGDBConnection {
     }
 
     /**
-     * Vorgehen beim Schreiben des Status: 1. T_Geolocation schreiben --> fÃ¼hrt
-     * evtl. dazu, me 2. T_Place schreiben 3. User schreiben 4. Status schreiben
-     * Das ganze sollte in einer Transaktionsklammer passieren, um bei Fehlern
-     * keine Inkonsistenzen in den Daten zu erzeugen
+     * Inserts Status object into database. Extended Media Entities are not
+     * supported.
      *
      * @param twStatus
      *            The Twitter4J Status interface
@@ -148,8 +182,13 @@ public class PGDBConnection {
     public int insertStatus(Status twStatus) {
 
         Timestamp tsrecorded_at = new Timestamp(Calendar.getInstance().getTimeInMillis());
-        long lURLid = -1;
+
+        long lURLEntityid = -1;
+        long lDescURLEntityid = -1; // User Description URL Entitites
         long lPlaceid = -1;
+        long lGeoLocid = -1;
+        long lStatusURLEntitiesid = -1;
+        long lStatusHashtagEntitiesid = -1;
 
         try {
 
@@ -179,39 +218,157 @@ public class PGDBConnection {
                 stInsPlace.setString(9, twPlace.getPlaceType());
                 stInsPlace.setString(10, twPlace.getStreetAddress());
                 // TODO: rekursive Aufloesung verschachtelter Places
+                // nicht wichtig, da Place sowieso nicht oft vorkommt
                 stInsPlace.setNull(11, Types.BIGINT);
 
                 stInsPlace.executeUpdate();
-            }
+
+                // schreibe BoundingBox aus Place
+                // Durchlaufe das doppelte Array GeoLocation[0][j] und schreibe
+                // die Einzelkoordinaten in die DB
+                // Annahme: es gibt nur ein einziges Polygon als Bounding Box
+                GeoLocation[][] arrGeo = null;
+                arrGeo = twPlace.getBoundingBoxCoordinates();
+
+                if (arrGeo != null) {
+                    GeoLocation[] arrbboxloc = arrGeo[0];
+                    Statement st1 = db.createStatement();
+
+                    // Durchlaufe alle Ecken des Polygons
+                    for (GeoLocation element : arrbboxloc) {
+                        // hole id aus Sequence geoloc_seq
+                        ResultSet rs1 = st1.executeQuery("select nextval('geoloc_seq')");
+                        rs1.next();
+                        lGeoLocid = rs1.getLong(1);
+                        rs1.close();
+
+                        // schreibe Attribute
+                        // ID,latitude, longitude, bboxcoord_place_id,
+                        // geocoord_place_id
+                        stInsGeoLoc.setLong(1, lGeoLocid);
+                        stInsGeoLoc.setDouble(2, element.getLatitude());
+                        stInsGeoLoc.setDouble(3, element.getLongitude());
+                        stInsGeoLoc.setLong(4, lPlaceid);
+                        stInsGeoLoc.setNull(5, Types.BIGINT);
+                        stInsGeoLoc.executeUpdate();
+                    } // for
+                    st1.close();
+                } // if
+
+                // schreibe Geometry aus Place
+                arrGeo = null;
+                arrGeo = twPlace.getGeometryCoordinates();
+
+                if (arrGeo != null) {
+                    GeoLocation[] arrbboxloc = arrGeo[0];
+                    Statement st1 = db.createStatement();
+
+                    // Durchlaufe alle Ecken des Polygons
+                    for (GeoLocation element : arrbboxloc) {
+                        // hole id aus Sequence geoloc_seq
+                        ResultSet rs1 = st1.executeQuery("select nextval('geoloc_seq')");
+                        rs1.next();
+                        lGeoLocid = rs1.getLong(1);
+                        rs1.close();
+
+                        // schreibe Attribute
+                        // ID,latitude, longitude, bboxcoord_place_id,
+                        // geocoord_place_id
+                        stInsGeoLoc.setLong(1, lGeoLocid);
+                        stInsGeoLoc.setDouble(2, element.getLatitude());
+                        stInsGeoLoc.setDouble(3, element.getLongitude());
+                        stInsGeoLoc.setNull(4, Types.BIGINT);
+                        stInsGeoLoc.setLong(5, lPlaceid);
+                        stInsGeoLoc.executeUpdate();
+                    } // for
+                    st1.close();
+                } // if arrgeo != null
+
+            } // Place != null
 
             // schreibe URL-Objekt
-            if (twStatus.getUser() != null && twStatus.getUser().getURLEntity() != null) {
+            // User's URL
+            // leider kann es das URLEntity-Objekt geben, ohne dass dessen
+            // Felder gefuellt sind.
+
+            if (twStatus.getUser() != null && twStatus.getUser().getURLEntity() != null
+                    && !twStatus.getUser().getURLEntity().getURL().isEmpty()) {
                 URLEntity twURL = null;
+                long lURLid = -1;
                 twURL = twStatus.getUser().getURLEntity();
 
                 // hole Sequenznummer fuer die URL
                 Statement st = db.createStatement();
-                ResultSet rs = st.executeQuery("select nextval('url_seq')");
+                ResultSet rs = st.executeQuery("select nextval('url_seq'),nextval('entity_seq')");
                 rs.next();
                 lURLid = rs.getLong(1);
+                lURLEntityid = rs.getLong(2);
                 rs.close();
                 st.close();
-                // setze Parameter
+
+                // schreibe Entity zuerst
+                stInsEntity.setLong(1, lURLEntityid);
+                stInsEntity.executeUpdate();
+
+                // dann schreibe URL
                 stInsURL.setLong(1, lURLid);
-                stInsURL.setTimestamp(2, tsrecorded_at);
-                stInsURL.setString(3, twURL.getDisplayURL());
-                stInsURL.setString(4, twURL.getExpandedURL());
-                stInsURL.setInt(5, twURL.getStart());
-                stInsURL.setInt(6, twURL.getEnd());
-                stInsURL.setString(7, twURL.getURL());
-                stInsURL.setString(8, twURL.getText());
-                stInsURL.setNull(9, Types.BIGINT); // TODO: entity_id bigint
-                // noch zu setzen, wenn
-                // Entities implementiert
-                // sind.
-                // REFERENCES T_Entity(ID)
+                stInsURL.setString(2, twURL.getDisplayURL());
+                stInsURL.setString(3, twURL.getExpandedURL());
+                stInsURL.setInt(4, twURL.getStart());
+                stInsURL.setInt(5, twURL.getEnd());
+                stInsURL.setString(6, twURL.getURL());
+                stInsURL.setString(7, twURL.getText());
+                stInsURL.setLong(8, lURLEntityid);
+
                 stInsURL.executeUpdate();
             }
+
+            // User Description URL Entities
+            if (twStatus.getUser().getDescriptionURLEntities() != null) {
+                URLEntity[] arrURL = null;
+                long lURLid = -1;
+                arrURL = twStatus.getUser().getDescriptionURLEntities();
+
+                // gibt es Ã¼berhaupt DatensÃ¤tze?
+                if (arrURL.length > 0) {
+                    // get Entity ID
+                    Statement st = db.createStatement();
+                    ResultSet rs = st.executeQuery("select nextval('entity_seq')");
+                    rs.next();
+                    lDescURLEntityid = rs.getLong(1);
+                    rs.close();
+                    st.close();
+
+                    // schreibe Entity zuerst
+                    stInsEntity.setLong(1, lDescURLEntityid);
+                    stInsEntity.executeUpdate();
+
+                    for (URLEntity elem : arrURL) {
+                        // hole Sequenznummer fÃ¼r die URL
+                        st = db.createStatement();
+                        rs = st.executeQuery("select nextval('url_seq')");
+                        rs.next();
+                        lURLid = rs.getLong(1);
+                        rs.close();
+                        st.close();
+
+                        // dann schreibe URL
+                        stInsURL.setLong(1, lURLid);
+                        stInsURL.setString(2, elem.getDisplayURL());
+                        stInsURL.setString(3, elem.getExpandedURL());
+                        stInsURL.setInt(4, elem.getStart());
+                        stInsURL.setInt(5, elem.getEnd());
+                        stInsURL.setString(6, elem.getURL());
+                        stInsURL.setString(7, elem.getText());
+                        stInsURL.setLong(8, lDescURLEntityid);
+                        stInsURL.executeUpdate();
+
+                    } // for
+
+                } else {
+                    lDescURLEntityid = -1;
+                }
+            } // if getDescriptionURLEntities!=null
 
             // schreibe User-Objekt
             User twUser = null;
@@ -251,16 +408,112 @@ public class PGDBConnection {
                 stInsUser.setInt(25, (twUser.isProtected() ? 1 : 0));
                 stInsUser.setInt(26, (twUser.isTranslator() ? 1 : 0));
                 stInsUser.setInt(27, (twUser.isVerified() ? 1 : 0));
-                if (lURLid != -1) {
-                    stInsUser.setLong(28, lURLid);
+                if (lURLEntityid != -1) {
+                    stInsUser.setLong(28, lURLEntityid);
                 } else {
                     stInsUser.setNull(28, Types.BIGINT);
+                }
+                if (lDescURLEntityid != -1) {
+                    stInsUser.setLong(29, lDescURLEntityid);
+                } else {
+                    stInsUser.setNull(29, Types.BIGINT);
                 }
                 stInsUser.executeUpdate();
 
             }
+            // schreibe Status URL Entities
+            if (twStatus.getURLEntities() != null) {
+                URLEntity[] arrURL = null;
+                long lURLid = -1;
+                arrURL = twStatus.getURLEntities();
 
-            // schreibe Status-objekt
+                // gibt es überhaupt Datensätze?
+                if (arrURL.length > 0) {
+
+                    // get Entity ID
+                    Statement st = db.createStatement();
+                    ResultSet rs = st.executeQuery("select nextval('entity_seq')");
+                    rs.next();
+                    lStatusURLEntitiesid = rs.getLong(1);
+                    rs.close();
+                    st.close();
+
+                    // schreibe Entity zuerst
+                    stInsEntity.setLong(1, lStatusURLEntitiesid);
+                    stInsEntity.executeUpdate();
+
+                    for (URLEntity elem : arrURL) {
+                        // hole Sequenznummer für die URL
+                        st = db.createStatement();
+                        rs = st.executeQuery("select nextval('url_seq')");
+                        rs.next();
+                        lURLid = rs.getLong(1);
+                        rs.close();
+                        st.close();
+
+                        // dann schreibe URL
+                        stInsURL.setLong(1, lURLid);
+                        stInsURL.setString(2, elem.getDisplayURL());
+                        stInsURL.setString(3, elem.getExpandedURL());
+                        stInsURL.setInt(4, elem.getStart());
+                        stInsURL.setInt(5, elem.getEnd());
+                        stInsURL.setString(6, elem.getURL());
+                        stInsURL.setString(7, elem.getText());
+                        stInsURL.setLong(8, lStatusURLEntitiesid);
+                        stInsURL.executeUpdate();
+
+                    } // for
+
+                } else {
+                    lStatusURLEntitiesid = -1;
+                }
+            } // if getURLEntities!=null
+
+            // schreibe Status Hashtag Entities
+            if (twStatus.getHashtagEntities() != null) {
+                HashtagEntity[] arrHT = null;
+                long lHTid = -1;
+                arrHT = twStatus.getHashtagEntities();
+
+                // gibt es überhaupt Datensätze?
+                if (arrHT.length > 0) {
+
+                    // get Entity ID
+                    Statement st = db.createStatement();
+                    ResultSet rs = st.executeQuery("select nextval('entity_seq')");
+                    rs.next();
+                    lStatusHashtagEntitiesid = rs.getLong(1);
+                    rs.close();
+                    st.close();
+
+                    // schreibe Entity zuerst
+                    stInsEntity.setLong(1, lStatusHashtagEntitiesid);
+                    stInsEntity.executeUpdate();
+
+                    for (HashtagEntity elem : arrHT) {
+                        // hole Sequenznummer für die URL
+                        st = db.createStatement();
+                        rs = st.executeQuery("select nextval('hashtag_seq')");
+                        rs.next();
+                        lHTid = rs.getLong(1);
+                        rs.close();
+                        st.close();
+
+                        // dann schreibe URL
+                        stInsHashtag.setLong(1, lHTid);
+                        stInsHashtag.setInt(2, elem.getStart());
+                        stInsHashtag.setInt(3, elem.getEnd());
+                        stInsHashtag.setString(4, elem.getText());
+                        stInsHashtag.setLong(5, lStatusHashtagEntitiesid);
+                        stInsHashtag.executeUpdate();
+
+                    } // for
+
+                } else {
+                    lStatusHashtagEntitiesid = -1;
+                }
+            } // if getHashtagEntities!=null
+              // schreibe Status-objekt
             stInsStatus.setLong(1, twStatus.getId());
             stInsStatus.setString(2, twStatus.getText());
             stInsStatus.setTimestamp(3, new Timestamp(twStatus.getCreatedAt().getTime()));
@@ -314,6 +567,20 @@ public class PGDBConnection {
                 stInsStatus.setNull(26, Types.BIGINT);
             }
 
+            // URL Entities
+            if (lStatusURLEntitiesid != -1) {
+                stInsStatus.setLong(27, lStatusURLEntitiesid);
+            } else {
+                stInsStatus.setNull(27, Types.BIGINT);
+            }
+
+            // Hashtag Entities
+            if (lStatusHashtagEntitiesid != -1) {
+                stInsStatus.setLong(28, lStatusHashtagEntitiesid);
+            } else {
+                stInsStatus.setNull(28, Types.BIGINT);
+            }
+
             stInsStatus.executeUpdate();
 
             db.commit();
@@ -325,14 +592,28 @@ public class PGDBConnection {
                 try {
                     System.err.print("Transaction is being rolled back");
                     db.rollback();
-                    if (stInsStatus != null)
+                    if (stInsStatus != null) {
                         stInsStatus.close();
-                    if (stInsUser != null)
+                    }
+                    if (stInsUser != null) {
                         stInsUser.close();
-                    if (stInsURL != null)
+                    }
+                    if (stInsURL != null) {
                         stInsURL.close();
-                    if (stInsPlace != null)
+                    }
+                    if (stInsPlace != null) {
                         stInsPlace.close();
+                    }
+                    if (stInsEntity != null) {
+                        stInsEntity.close();
+                    }
+                    if (stInsGeoLoc != null) {
+                        stInsGeoLoc.close();
+                    }
+                    if (stInsHashtag != null) {
+                        stInsHashtag.close();
+                    }
+
                 } catch (SQLException excep) {
                     System.err.println(excep.toString());
                 }
