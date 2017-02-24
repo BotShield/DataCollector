@@ -16,9 +16,7 @@
 
 package de.botshield;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Properties;
+import java.sql.SQLException;
 
 import twitter4j.FilterQuery;
 import twitter4j.StallWarning;
@@ -30,93 +28,77 @@ import twitter4j.TwitterStream;
 import twitter4j.TwitterStreamFactory;
 
 /**
- * Klasse zum Schreiben von Tweets in eine DB basierend auf Schlagwörtern.
+ * Klasse zum Schreiben von Tweets in eine DB basierend auf Schlagwoertern.
  */
 public final class CaptureFilterStream {
 
     private PGDBConnection dbConn;
-    private boolean blnWritetoDB = false;
-    private final static String PROPERTY_FILE = "dataCollector.properties";
-    private final static String PROPERTY_KEY_FOLLOW = "toBeFollowed";
-    private final static String PROPERTY_KEY_TOPICS = "trackTopics";
-    private final static String PROPERTY_SEPARATOR = ",";
-    private final static String PROPERTY_DATABASEINTEGRATION = "WriteToDatabase";
-
-    StatusListener listener = new StatusListener() {
-        @Override
-        public void onStatus(Status status) {
-            System.out.println("@" + status.getUser().getScreenName());
-            if (blnWritetoDB)
-                dbConn.insertStatus(status);
-        }
-
-        @Override
-        public void onDeletionNotice(StatusDeletionNotice statusDeletionNotice) {
-            System.err.println("Got a status deletion notice id:"
-                    + statusDeletionNotice.getStatusId());
-        }
-
-        @Override
-        public void onTrackLimitationNotice(int numberOfLimitedStatuses) {
-            System.err.println("Got track limitation notice:"
-                    + numberOfLimitedStatuses);
-        }
-
-        @Override
-        public void onScrubGeo(long userId, long upToStatusId) {
-            System.err.println("Got scrub_geo event userId:" + userId
-                    + " upToStatusId:" + upToStatusId);
-        }
-
-        @Override
-        public void onStallWarning(StallWarning warning) {
-            System.err.println("Got stall warning:" + warning);
-        }
-
-        @Override
-        public void onException(Exception ex) {
-            // TODO: sauberer Abbau der DB Connection bei Programmende
-            // hier kein closeConnection, da jede SQLException sonst alle
-            // zukünftigen Schreibprozess unmöglich macht
-            // dbConn.closeConnection();
-            ex.printStackTrace();
-        }
-    };
+    private boolean blnWritetoDB;
+    private StatusListener listener;
 
     /*
      * Constructor
      */
     public CaptureFilterStream() {
+    }
 
-        /*
-         * Alternative Konfigurationsmethode ohne Properties-Datei
-         * ConfigurationBuilder cb = new ConfigurationBuilder();
-         * cb.setDebugEnabled(true)
-         * .setOAuthConsumerKey("*********************")
-         * .setOAuthConsumerSecret("******************************************")
-         * .setOAuthAccessToken(
-         * "**************************************************")
-         * .setOAuthAccessTokenSecret(
-         * "******************************************");
-         *
-         * TwitterFactory tf = new TwitterFactory(cb.build()); Twitter twitter =
-         * tf.getInstance();
-         */
+    public void initializeStreamListener() {
+
+        listener = new StatusListener() {
+            @Override
+            public void onStatus(Status status) {
+                if (isBlnWritetoDB()) {
+                    System.out.println("*********************** Writing tweet into db! *********************** ");
+                    dbConn.insertStatus(status);
+                }
+            }
+
+            @Override
+            public void onDeletionNotice(StatusDeletionNotice statusDeletionNotice) {
+                System.err.println("Got a status deletion notice id:" + statusDeletionNotice.getStatusId());
+            }
+
+            @Override
+            public void onTrackLimitationNotice(int numberOfLimitedStatuses) {
+                System.err.println("Got track limitation notice:" + numberOfLimitedStatuses);
+            }
+
+            @Override
+            public void onScrubGeo(long userId, long upToStatusId) {
+                System.err.println("Got scrub_geo event userId:" + userId + " upToStatusId:" + upToStatusId);
+            }
+
+            @Override
+            public void onStallWarning(StallWarning warning) {
+                System.err.println("Got stall warning:" + warning);
+            }
+
+            @Override
+            public void onException(Exception ex) {
+                // TODO: sauberer Abbau der DB Connection bei Programmende
+                // hier kein closeConnection, da jede SQLException sonst alle
+                // zukuenftigen Schreibprozess unmoeglich macht
+                // dbConn.closeConnection();
+                ex.printStackTrace();
+            }
+        };
+
     }
 
     /**
-     * @return -1 if connection could not be established
+     * @return false if connection could not be established
+     * @throws SQLException
      */
-    public int setupConnection() {
+    public boolean setupConnection() throws SQLException {
         dbConn = new PGDBConnection();
-        return dbConn.establishConnection("jstrebel", "", "twitter"); // login
-        // meiner
-        // Testdatenbank
-        // auf localhost
+        boolean result = dbConn.establishConnection("dbUser", "dataCollector", "twitter");
+        if (result) {
+            dbConn.prepareStatements();
+        }
+        return result;
     }
 
-    public void execute(long[] followArray, String[] trackArray)
-            throws TwitterException {
+    public void execute(long[] followArray, String[] trackArray) {
         TwitterStream twitterStream = new TwitterStreamFactory().getInstance();
         twitterStream.addListener(listener);
 
