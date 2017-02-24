@@ -82,8 +82,8 @@ public class PGDBConnection {
                 + "InReplyToScreenName,InReplyToStatusId,"
                 + "InReplyToUserId,quoted_status_id,RetweetCount,retweeted_status_id,status_source,isFavorited,"
                 + "isPossiblySensitive,isRetweet,isRetweeted,isRetweetedByMe,isTruncated,recorded_at,"
-                + "status_user_id,latitude,longitude,status_place_id,URLEntities_id) "
-                + "values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+                + "status_user_id,latitude,longitude,status_place_id,URLEntities_id,HashtagEntities_id) "
+                + "values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
         String strInsUser = "insert into T_User(ID,recorded_at," + "username,screen_name,created_at,description,"
                 + "geo_enabled,lang,followers_count,favourites_count,friends_count, listed_count,loca,"
