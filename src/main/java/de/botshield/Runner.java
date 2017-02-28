@@ -12,6 +12,9 @@ public class Runner {
     private final static String PROPERTY_KEY_TOPICS = "trackTopics";
     private final static String PROPERTY_SEPARATOR = ",";
     private final static String PROPERTY_DATABASEINTEGRATION = "WriteToDatabase";
+    private final static String PROPERTY_DATABASENAME = "DatabaseName";
+    private final static String PROPERTY_DATABASEUSER = "DatabaseUser";
+    private final static String PROPERTY_DATABASEPW = "DatabasePW";
 
     public static void main(String[] args) throws SQLException {
         Properties props = new Properties();
@@ -19,7 +22,8 @@ public class Runner {
 
         // Read definitions from property file
         try {
-            InputStream is = objCapture.getClass().getClassLoader().getResourceAsStream(PROPERTY_FILE);
+            InputStream is = objCapture.getClass().getClassLoader()
+                    .getResourceAsStream(PROPERTY_FILE);
             props.load(is);
         } catch (IOException ex) {
             ex.printStackTrace();
@@ -29,7 +33,13 @@ public class Runner {
         String[] trackArray = readTopics(props);
 
         // Check if database integration is needed
-        if (props.getProperty(PROPERTY_DATABASEINTEGRATION).trim().equals("true") && objCapture.setupConnection()) {
+        if (props.getProperty(PROPERTY_DATABASEINTEGRATION).trim()
+                .equals("true")) {
+            String strDBUser = props.getProperty(PROPERTY_DATABASEUSER).trim();
+            String strDBName = props.getProperty(PROPERTY_DATABASENAME).trim();
+            String strDBPW = props.getProperty(PROPERTY_DATABASEPW).trim();
+
+            objCapture.setupConnection(strDBUser, strDBName, strDBPW);
             objCapture.setBlnWritetoDB(true);
             System.out.println("Write to DB is set to true!");
         } else {
@@ -37,9 +47,7 @@ public class Runner {
             System.out.println("Write to DB is set to false!");
         }
 
-        objCapture.initializeStreamListener();
-
-        // start following
+        // initialize listener and start following
         objCapture.execute(followArray, trackArray);
     }
 

@@ -47,24 +47,29 @@ public final class CaptureFilterStream {
             @Override
             public void onStatus(Status status) {
                 if (isBlnWritetoDB()) {
-                    System.out.println("*********************** Writing tweet into db! *********************** ");
+                    System.out
+                    .println("*********************** Writing tweet into db! *********************** ");
                     dbConn.insertStatus(status);
                 }
             }
 
             @Override
-            public void onDeletionNotice(StatusDeletionNotice statusDeletionNotice) {
-                System.err.println("Got a status deletion notice id:" + statusDeletionNotice.getStatusId());
+            public void onDeletionNotice(
+                    StatusDeletionNotice statusDeletionNotice) {
+                System.err.println("Got a status deletion notice id:"
+                        + statusDeletionNotice.getStatusId());
             }
 
             @Override
             public void onTrackLimitationNotice(int numberOfLimitedStatuses) {
-                System.err.println("Got track limitation notice:" + numberOfLimitedStatuses);
+                System.err.println("Got track limitation notice:"
+                        + numberOfLimitedStatuses);
             }
 
             @Override
             public void onScrubGeo(long userId, long upToStatusId) {
-                System.err.println("Got scrub_geo event userId:" + userId + " upToStatusId:" + upToStatusId);
+                System.err.println("Got scrub_geo event userId:" + userId
+                        + " upToStatusId:" + upToStatusId);
             }
 
             @Override
@@ -88,9 +93,11 @@ public final class CaptureFilterStream {
      * @return false if connection could not be established
      * @throws SQLException
      */
-    public boolean setupConnection() throws SQLException {
+    public boolean setupConnection(String strDBUser, String strDBName,
+            String strDBPW) throws SQLException {
         dbConn = new PGDBConnection();
-        boolean result = dbConn.establishConnection("dbUser", "dataCollector", "twitter");
+        boolean result = dbConn.establishConnection(strDBUser, strDBPW,
+                strDBName);
         if (result) {
             dbConn.prepareStatements();
         }
@@ -98,12 +105,22 @@ public final class CaptureFilterStream {
     }
 
     public void execute(long[] followArray, String[] trackArray) {
+        // try to set up new stream, when the listener fails due to HTTP timeout
+        // for example
+
+        this.initializeStreamListener();
+
         TwitterStream twitterStream = new TwitterStreamFactory().getInstance();
         twitterStream.addListener(listener);
-
-        // filter() method internally creates a thread which manipulates
-        // TwitterStream and calls these adequate listener methods continuously.
-        twitterStream.filter(new FilterQuery(0, followArray, trackArray));
+        try {
+            // filter() method internally creates a thread which manipulates
+            // TwitterStream and calls these adequate listener methods
+            // continuously.
+            twitterStream.filter(new FilterQuery(0, followArray, trackArray));
+        } catch (Exception ex) {
+            twitterStream.removeListener(listener);
+            twitterStream.cleanUp();
+        }
     }
 
     public boolean isBlnWritetoDB() {
